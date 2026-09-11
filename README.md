@@ -1,5 +1,7 @@
 # Híbrido
 
+**App publicada:** https://cristobalmugonza-glitch.github.io/app-hibrido/ (en el iPhone: ábrela en Safari › Compartir › *Agregar a pantalla de inicio*).
+
 App web personal de entrenamiento híbrido (fuerza + running). Funciona en el navegador del celular, se instala en la pantalla de inicio y funciona sin conexión. Sin cuentas, sin servidor: los datos viven en el teléfono (`localStorage`) y se respaldan exportando un JSON.
 
 - **Hoy**: te dice cuál es tu próxima sesión. No usa días de la semana, sino una cola de 8 sesiones que avanza solo cuando completas o saltas una.
