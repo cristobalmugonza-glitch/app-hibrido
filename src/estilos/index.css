@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --fondo: #0e1012;
+  --superficie: #1a1d21;
+  --texto: #edeff1;
+  --texto-2: #8c949d;
+  --acento: #c6f35e;
+  --alerta: #ff6a5c;
+  --linea: rgba(140, 148, 157, 0.25);
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--fondo);
+  color: var(--texto);
+}
+
+body {
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+.num {
+  font-family: 'Barlow Condensed', Inter, system-ui, sans-serif;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+input,
+select,
+textarea {
+  font-size: 16px; /* evita el zoom automático de iOS */
+}
+
+button {
+  touch-action: manipulation;
+}
+
+/* Filas que se desplazan en horizontal (filtros) sin mostrar la barra. */
+.sin-barra {
+  scrollbar-width: none;
+}
+.sin-barra::-webkit-scrollbar {
+  display: none;
+}
+
+input[type='time']::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+}
