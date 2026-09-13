@@ -1,27 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import { datosSemilla } from '../data/semilla';
-import type { Datos } from '../tipos/modelo';
-import { guiaAyuno, macros, perdidaRapida, promediosSemanales, propuestaKcal, rangoProteinaDeficit } from './nutricion';
+import type { Datos, Objetivo } from '../tipos/modelo';
+import { datosPrueba } from '../pruebas/fixtures';
+import { aplicarKcal, guiaAyuno, macros, metaSemanal, perdidaRapida, promediosSemanales, propuestaKcal, rangoProteinaDeficit } from './nutricion';
 
 const AHORA = new Date('2026-10-20T12:00:00.000Z');
 const DIA = 86_400_000;
 const hace = (dias: number) => new Date(AHORA.getTime() - dias * DIA).toISOString();
 
+function base(objetivo: Objetivo = 'perder_grasa'): Datos {
+  const d = datosPrueba({ objetivo });
+  return { ...d, perfil: { ...d.perfil, caloriasObjetivo: 2450, proteinaObjetivo: 160, grasaObjetivo: 70, pisoKcal: 1900 } };
+}
+
 // 3 pesajes por semana (días 1, 3 y 5 de cada ventana); pesoSemana[i] = semana i hacia atrás.
-function conPesos(pesoSemana: number[], d = datosSemilla()): Datos {
-  d.pesos = pesoSemana.flatMap((p, i) => [1, 3, 5].map((k) => ({ fecha: hace(i * 7 + k), peso: p })));
-  return d;
+function conPesos(pesoSemana: number[], d = base()): Datos {
+  return { ...d, pesos: pesoSemana.flatMap((p, i) => [1, 3, 5].map((k) => ({ fecha: hace(i * 7 + k), peso: p }))) };
 }
 
 describe('macros', () => {
-  it('semilla: 2.450 kcal, 160 g proteína, 70 g grasa → 295 g de carbohidratos', () => {
-    expect(macros(datosSemilla().perfil)).toEqual({ kcal: 2450, proteina: 160, grasa: 70, carbos: 295 });
+  it('2.450 kcal, 160 g proteína, 70 g grasa → 295 g de carbohidratos', () => {
+    expect(macros(base().perfil)).toEqual({ kcal: 2450, proteina: 160, grasa: 70, carbos: 295 });
   });
 });
 
-describe('calibración de calorías', () => {
+describe('calibración para perder grasa', () => {
   it('sin datos suficientes no propone nada', () => {
-    expect(propuestaKcal(datosSemilla(), AHORA)).toBeNull();
+    expect(propuestaKcal(base(), AHORA)).toBeNull();
   });
 
   it('promedia por ventana de 7 días y exige al menos 2 pesajes', () => {
@@ -36,31 +40,56 @@ describe('calibración de calorías', () => {
   });
 
   it('3 semanas sin bajar: propone −150 kcal', () => {
-    const p = propuestaKcal(conPesos([80.6, 80.7, 80.6, 80.7]), AHORA);
-    expect(p).toMatchObject({ tipo: 'bajar', deltaKcal: -150 });
+    expect(propuestaKcal(conPesos([80.6, 80.7, 80.6, 80.7]), AHORA)).toMatchObject({ tipo: 'bajar', deltaKcal: -150 });
   });
 
-  it('cerca del piso de 1.900 kcal: propone pausa en vez de bajar', () => {
+  it('cerca del piso: propone pausa en vez de bajar', () => {
     const d = conPesos([80.6, 80.7, 80.6, 80.7]);
-    d.perfil.caloriasObjetivo = 2000;
-    expect(propuestaKcal(d, AHORA)).toMatchObject({ tipo: 'pausa', deltaKcal: 0 });
+    expect(propuestaKcal({ ...d, perfil: { ...d.perfil, caloriasObjetivo: 2000 } }, AHORA)).toMatchObject({ tipo: 'pausa', deltaKcal: 0 });
   });
 
-  it('bajando más de 0,6 kg/semana dos semanas seguidas: propone +150 kcal', () => {
+  it('bajando más de 0,75 % del peso por semana dos semanas seguidas: propone +150 kcal', () => {
     expect(propuestaKcal(conPesos([78.6, 79.3, 80.0]), AHORA)).toMatchObject({ tipo: 'subir', deltaKcal: 150 });
   });
 
-  it('pérdida rápida sostenida (>0,8 kg/semana) se detecta', () => {
+  it('pérdida rápida sostenida (>1 % del peso por semana) se detecta', () => {
     expect(perdidaRapida(conPesos([78.2, 79.1, 80.0]), AHORA)).toBe(true);
     expect(perdidaRapida(conPesos([79.3, 79.7, 80.0]), AHORA)).toBe(false);
+  });
+
+  it('después de aplicar un ajuste espera 2 semanas', () => {
+    const estancado = conPesos([80.6, 80.7, 80.6, 80.7]);
+    const d = aplicarKcal(estancado, -150, new Date(AHORA.getTime() - 5 * DIA));
+    expect(d.perfil.caloriasObjetivo).toBe(2300);
+    expect(propuestaKcal(d, AHORA)).toBeNull();
+    expect(propuestaKcal(aplicarKcal(estancado, -150, new Date(AHORA.getTime() - 15 * DIA)), AHORA)).not.toBeNull();
+  });
+});
+
+describe('calibración para ganar músculo y mantener', () => {
+  it('ganar: 3 semanas sin subir → +150; subiendo rápido → −150; buen ritmo → nada', () => {
+    expect(propuestaKcal(conPesos([80, 80, 80, 80], base('ganar_musculo')), AHORA)).toMatchObject({ tipo: 'subir', deltaKcal: 150 });
+    expect(propuestaKcal(conPesos([81.2, 80.6, 80.0], base('ganar_musculo')), AHORA)).toMatchObject({ tipo: 'bajar', deltaKcal: -150 });
+    expect(propuestaKcal(conPesos([80.5, 80.4, 80.2, 80.0], base('ganar_musculo')), AHORA)).toBeNull();
+  });
+
+  it('mantener: corrige solo si el peso se mueve más de 1 % en 3 semanas', () => {
+    expect(propuestaKcal(conPesos([81, 80.6, 80.3, 80], base('mantener')), AHORA)).toMatchObject({ tipo: 'bajar' });
+    expect(propuestaKcal(conPesos([79, 79.4, 79.7, 80], base('mantener')), AHORA)).toMatchObject({ tipo: 'subir' });
+    expect(propuestaKcal(conPesos([80.2, 80, 80.1, 80], base('mantener')), AHORA)).toBeNull();
+  });
+
+  it('la meta semanal se escala con el peso', () => {
+    expect(metaSemanal(base().perfil, 80)).toBe('Meta: bajar 0,3–0,6 kg por semana.');
+    expect(metaSemanal(base('ganar_musculo').perfil, 80)).toBe('Meta: subir 0,2–0,4 kg por semana.');
+    expect(metaSemanal(base('mantener').perfil, 80)).toBe('Meta: mantener tu peso estable.');
   });
 });
 
 describe('proteína', () => {
   it('rango en déficit sobre masa libre de grasa', () => {
-    const d = datosSemilla();
-    d.medidas = [{ fecha: hace(1), ciclo: 1, cintura: 88, grasaNavy: 20 }];
-    expect(rangoProteinaDeficit(d)).toEqual([148, 200]);
+    const d = { ...base(), medidas: [{ fecha: hace(1), cintura: 88, grasaNavy: 20 }] };
+    expect(rangoProteinaDeficit(d)).toEqual([147, 198]);
   });
 });
 

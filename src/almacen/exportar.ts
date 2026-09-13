@@ -1,6 +1,6 @@
 import type { Datos } from '../tipos/modelo';
 import { diaLocal } from '../motor/fechas';
-import { esDatosValidos, normalizar } from './storage';
+import { migrar } from './migracion';
 
 // En iOS la hoja de compartir es la forma confiable de guardar un archivo desde una PWA.
 export async function exportarJSON(datos: Datos): Promise<void> {
@@ -25,6 +25,7 @@ export async function exportarJSON(datos: Datos): Promise<void> {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+// Acepta respaldos de la versión actual y de la anterior (se migran).
 export async function leerJSON(archivo: File): Promise<Datos> {
   let obj: unknown;
   try {
@@ -32,6 +33,7 @@ export async function leerJSON(archivo: File): Promise<Datos> {
   } catch {
     throw new Error('El archivo no es un JSON válido.');
   }
-  if (!esDatosValidos(obj)) throw new Error('El archivo no tiene el formato de un respaldo de Híbrido.');
-  return normalizar(obj);
+  const datos = migrar(obj);
+  if (!datos) throw new Error('El archivo no tiene el formato de un respaldo de Híbrido.');
+  return datos;
 }

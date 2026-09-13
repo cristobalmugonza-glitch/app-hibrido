@@ -76,7 +76,7 @@ export function sugerir(def: EjercicioDef, historial: EntradaHistorial[], descar
     if (!conCarga) {
       const texto = def.modo === 'tiempo'
         ? 'Llegaste al tope: súbele la dificultad (ojos cerrados o superficie inestable) y vuelve al mínimo.'
-        : 'Llegaste al tope: usa una banda más dura y vuelve al mínimo.';
+        : 'Llegaste al tope: usa una variante más difícil (o una banda más dura) y vuelve al mínimo.';
       return { peso: null, reps: lleno(series, min), series, motivo: 'variante', texto, porQue: 'doble_progresion' };
     }
     const nuevo = redondearCarga(trabajo.peso + def.incrementoKg, def.incrementoKg);

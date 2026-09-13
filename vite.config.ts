@@ -13,7 +13,7 @@ export default defineConfig({
       manifest: {
         name: 'Híbrido',
         short_name: 'Híbrido',
-        description: 'Entrenamiento híbrido por secuencia de sesiones',
+        description: 'Plan semanal de fuerza y running con respaldo científico',
         lang: 'es-CL',
         start_url: './',
         scope: './',

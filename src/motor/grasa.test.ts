@@ -50,7 +50,7 @@ describe('categorías ACE', () => {
 
 describe('ratio hombros/cintura', () => {
   it('calcula con ambas medidas y null si falta hombros', () => {
-    expect(ratioHombrosCintura({ fecha: '', ciclo: 1, cintura: 85, hombros: 122 })).toBeCloseTo(1.435, 3);
-    expect(ratioHombrosCintura({ fecha: '', ciclo: 1, cintura: 85 })).toBeNull();
+    expect(ratioHombrosCintura({ fecha: '', cintura: 85, hombros: 122 })).toBeCloseTo(1.435, 3);
+    expect(ratioHombrosCintura({ fecha: '', cintura: 85 })).toBeNull();
   });
 });

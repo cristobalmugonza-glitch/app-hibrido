@@ -1,26 +1,30 @@
 import { useState, type ReactNode } from 'react';
-import type { EjercicioDef, ModoRegistro, Musculo, PasoSecuencia, PlantillaGym, Rutina, TipoEjercicio } from '../tipos/modelo';
+import type { EjercicioDef, ModoRegistro, Musculo, RefBloque, TipoEjercicio } from '../tipos/modelo';
 import { useDatos } from '../almacen/contexto';
 import { nuevoId } from '../almacen/storage';
-import { aNum, Boton, Campo, Casilla, deNum, Encabezado, Fila, Hoja, Volver } from '../componentes/ui';
+import { aNum, Boton, Campo, Casilla, deNum, Encabezado, Hoja, Volver } from '../componentes/ui';
 import { PorQue } from '../componentes/PorQue';
+import { CATALOGO, NOMBRE_GRUPO, RUTINAS_ESTANDAR, type Grupo, type IdRutina } from '../data/catalogo';
 import { MUSCULOS, NOMBRE_MUSCULO, NOMBRE_PRIORIDAD, REGLAS_TIPO } from '../data/reglas-tipo';
-import { fmt1 } from '../motor/formato';
-import { nombrePaso } from '../motor/secuencia';
+import { fmt1, plural } from '../motor/formato';
+import { NOMBRE_RUNNING, sesionesPlanificadas, TIPOS_RUNNING } from '../motor/planificacion';
+import {
+  agregarEjercicio,
+  aplicarRutinaEstandar,
+  crearPlantilla,
+  definicionPara,
+  eliminarPlantilla,
+  fijarVeces,
+  guardarEjercicio,
+  MAX_VECES,
+  misEjercicios,
+  moverEjercicio,
+  quitarEjercicio,
+  renombrarPlantilla,
+} from '../motor/rutina';
 import { analisisVolumen } from '../motor/volumen';
 
 const ORDEN_PRIORIDAD = ['alta', 'media', 'mantencion'] as const;
-
-// Omit distributivo: conserva cada variante de la unión PasoSecuencia.
-type SinId<T> = T extends unknown ? Omit<T, 'id'> : never;
-
-function mover<T>(xs: T[], k: number, d: number): T[] {
-  const j = k + d;
-  if (j < 0 || j >= xs.length) return xs;
-  const c = [...xs];
-  [c[k], c[j]] = [c[j], c[k]];
-  return c;
-}
 
 function BotonIcono({ etiqueta, children, onClick, disabled }: { etiqueta: string; children: ReactNode; onClick: () => void; disabled?: boolean }) {
   return (
@@ -30,98 +34,90 @@ function BotonIcono({ etiqueta, children, onClick, disabled }: { etiqueta: strin
   );
 }
 
+function Contador({ valor, onCambio, etiqueta }: { valor: number; onCambio: (v: number) => void; etiqueta: string }) {
+  return (
+    <div className="flex shrink-0 items-center">
+      <BotonIcono etiqueta={`Menos ${etiqueta}`} disabled={valor <= 0} onClick={() => onCambio(valor - 1)}>
+        −
+      </BotonIcono>
+      <span className="num w-6 text-center text-xl">{valor}</span>
+      <BotonIcono etiqueta={`Más ${etiqueta}`} disabled={valor >= MAX_VECES} onClick={() => onCambio(valor + 1)}>
+        +
+      </BotonIcono>
+    </div>
+  );
+}
+
 export function EditorRutina({ onVolver }: { onVolver: () => void }) {
   const { datos, actualizar } = useDatos();
   const [plantillaId, setPlantillaId] = useState<string | null>(null);
-  const [agregando, setAgregando] = useState(false);
+  const [estandar, setEstandar] = useState(false);
+  const [confirmar, setConfirmar] = useState<IdRutina | null>(null);
   const { rutina } = datos;
-
-  const cambiarRutina = (f: (r: Rutina) => Rutina) => actualizar((d) => ({ ...d, rutina: f(d.rutina) }));
-
-  // Al editar la secuencia, la cola sigue apuntando al mismo paso (no al mismo índice).
-  const cambiarSecuencia = (f: (s: PasoSecuencia[]) => PasoSecuencia[]) =>
-    actualizar((d) => {
-      const n = d.rutina.secuencia.length;
-      const actual = n ? d.rutina.secuencia[d.cola.posicion % n]?.id : undefined;
-      const secuencia = f(d.rutina.secuencia);
-      const idx = secuencia.findIndex((p) => p.id === actual);
-      const posicion = idx >= 0 ? idx : Math.min(d.cola.posicion, Math.max(0, secuencia.length - 1));
-      return { ...d, rutina: { ...d.rutina, secuencia }, cola: { ...d.cola, posicion } };
-    });
 
   if (plantillaId) return <EditorPlantilla id={plantillaId} onVolver={() => setPlantillaId(null)} />;
 
-  const volumen = analisisVolumen(rutina);
-  const posicionActual = rutina.secuencia.length ? datos.cola.posicion % rutina.secuencia.length : -1;
-
-  const nuevaPlantilla = () => {
-    const p: PlantillaGym = { id: nuevoId(), nombre: 'Nueva sesión', ejercicios: [] };
-    cambiarRutina((r) => ({ ...r, plantillas: [...r.plantillas, p] }));
-    setPlantillaId(p.id);
-  };
-
-  const agregarPaso = (p: SinId<PasoSecuencia>) => {
-    cambiarSecuencia((s) => [...s, { ...p, id: nuevoId() } as PasoSecuencia]);
-    setAgregando(false);
-  };
+  const volumen = analisisVolumen(rutina).filter((f) => f.series > 0 || f.prioridad !== 'mantencion');
+  const veces = (ref: RefBloque, v: number) => actualizar((d) => fijarVeces(d, ref, v));
 
   return (
     <div>
       <Volver onClick={onVolver}>Ajustes</Volver>
-      <Encabezado>Rutina</Encabezado>
+      <Encabezado>Plan semanal</Encabezado>
+      <p className="mt-1 text-sm text-texto2">{sesionesPlanificadas(datos)} sesiones por semana. Cada día eliges cuál hacer.</p>
 
-      <section className="mt-4">
-        <h2 className="text-sm text-texto2">Sesiones de gym</h2>
-        {rutina.plantillas.map((p) => (
-          <Fila key={p.id} titulo={p.nombre} sub={`${p.ejercicios.length} ejercicios · ${p.ejercicios.reduce((a, e) => a + e.series, 0)} series`} onClick={() => setPlantillaId(p.id)} />
-        ))}
-        <Boton variante="texto" className="mt-1 !px-0" onClick={nuevaPlantilla}>
+      <section className="mt-5">
+        <h2 className="text-sm text-texto2">Gym · veces por semana</h2>
+        <ul className="mt-1 border-t border-linea">
+          {rutina.plantillas.map((p) => (
+            <li key={p.id} className="flex items-center gap-2 border-b border-linea">
+              <button type="button" onClick={() => setPlantillaId(p.id)} className="min-w-0 flex-1 py-3 text-left">
+                <span className="block text-[17px]">{p.nombre}</span>
+                <span className="block text-sm text-texto2">
+                  {plural(p.ejercicios.length, 'ejercicio')} · {plural(p.ejercicios.reduce((a, e) => a + e.series, 0), 'serie')}
+                </span>
+              </button>
+              <Contador valor={p.vecesPorSemana} etiqueta={p.nombre} onCambio={(v) => veces({ clase: 'gym', plantillaId: p.id }, v)} />
+            </li>
+          ))}
+        </ul>
+        <Boton
+          variante="texto"
+          className="mt-1 !px-0"
+          onClick={() => {
+            const r = crearPlantilla(datos);
+            actualizar(() => r.datos);
+            setPlantillaId(r.id);
+          }}
+        >
           + Nueva sesión de gym
         </Boton>
       </section>
 
-      <section className="mt-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm text-texto2">Secuencia de una vuelta</h2>
-          <PorQue id="secuencia" />
-        </div>
-        <ol className="mt-1 border-t border-linea">
-          {rutina.secuencia.map((p, k) => (
-            <li key={p.id} className="flex items-center gap-1 border-b border-linea py-1">
-              <span className="num w-7 text-lg text-texto2">{k + 1}</span>
-              <span className="flex-1 text-[15px]">
-                {nombrePaso(p, rutina)}
-                {k === posicionActual && <span className="text-acento"> · próxima</span>}
-              </span>
-              <BotonIcono etiqueta="Subir" disabled={k === 0} onClick={() => cambiarSecuencia((s) => mover(s, k, -1))}>
-                ↑
-              </BotonIcono>
-              <BotonIcono etiqueta="Bajar" disabled={k === rutina.secuencia.length - 1} onClick={() => cambiarSecuencia((s) => mover(s, k, 1))}>
-                ↓
-              </BotonIcono>
-              <BotonIcono etiqueta="Quitar" onClick={() => cambiarSecuencia((s) => s.filter((x) => x.id !== p.id))}>
-                ×
-              </BotonIcono>
+      <section className="mt-5">
+        <h2 className="text-sm text-texto2">Running · veces por semana</h2>
+        <ul className="mt-1 border-t border-linea">
+          {TIPOS_RUNNING.map((t) => (
+            <li key={t} className="flex items-center gap-2 border-b border-linea py-1">
+              <span className="flex-1 text-[17px]">{NOMBRE_RUNNING[t]}</span>
+              <Contador valor={rutina.running[t]} etiqueta={NOMBRE_RUNNING[t]} onCambio={(v) => veces({ clase: 'running', tipo: t }, v)} />
             </li>
           ))}
-        </ol>
-        <Boton variante="texto" className="mt-1 !px-0" onClick={() => setAgregando(true)}>
-          + Agregar paso
-        </Boton>
+        </ul>
       </section>
 
       <section className="mt-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm text-texto2">Series por músculo en una vuelta</h2>
+          <h2 className="text-sm text-texto2">Series por músculo en una semana</h2>
           <PorQue id="volumen" />
         </div>
-        <p className="mt-1 text-sm text-texto2">Secundarios cuentan 0,5. Toca un músculo para cambiar su prioridad.</p>
+        <p className="mt-1 text-sm text-texto2">Toca un músculo para cambiar su prioridad.</p>
         <ul className="mt-2 border-t border-linea">
           {volumen.map((f) => (
             <li key={f.musculo} className="border-b border-linea">
               <button
                 type="button"
-                onClick={() => cambiarRutina((r) => ({ ...r, prioridades: { ...r.prioridades, [f.musculo]: ORDEN_PRIORIDAD[(ORDEN_PRIORIDAD.indexOf(f.prioridad) + 1) % 3] } }))}
+                onClick={() => actualizar((d) => ({ ...d, rutina: { ...d.rutina, prioridades: { ...d.rutina.prioridades, [f.musculo]: ORDEN_PRIORIDAD[(ORDEN_PRIORIDAD.indexOf(f.prioridad) + 1) % 3] } } }))}
                 className="flex w-full items-baseline justify-between gap-3 py-2.5 text-left"
               >
                 <span className="text-[15px]">
@@ -141,26 +137,44 @@ export function EditorRutina({ onVolver }: { onVolver: () => void }) {
         </ul>
       </section>
 
-      <Hoja abierta={agregando} onCerrar={() => setAgregando(false)} titulo="Agregar paso">
-        <div className="space-y-2">
-          {rutina.plantillas.map((p) => (
-            <Boton key={p.id} variante="secundario" onClick={() => agregarPaso({ clase: 'gym', plantillaId: p.id })}>
-              {p.nombre}
+      <div className="mt-6 flex justify-center">
+        <Boton variante="texto" disabled={!!datos.borradorGym} onClick={() => setEstandar(true)}>
+          Partir de una rutina estándar
+        </Boton>
+      </div>
+
+      <Hoja
+        abierta={estandar}
+        onCerrar={() => {
+          setEstandar(false);
+          setConfirmar(null);
+        }}
+        titulo={confirmar ? `¿Cambiar a ${RUTINAS_ESTANDAR.find((r) => r.id === confirmar)?.nombre}?` : 'Rutinas estándar'}
+      >
+        {confirmar ? (
+          <>
+            <p className="text-[15px] text-texto2">Tu plan actual se reemplaza. Tu historial queda intacto y tus ejercicios siguen disponibles en "Tus ejercicios".</p>
+            <Boton
+              className="mt-5"
+              onClick={() => {
+                actualizar((d) => aplicarRutinaEstandar(d, confirmar));
+                setEstandar(false);
+                setConfirmar(null);
+              }}
+            >
+              Reemplazar mi plan
             </Boton>
-          ))}
-          <Boton variante="secundario" onClick={() => agregarPaso({ clase: 'running', tipo: 'z2' })}>
-            Running Z2
-          </Boton>
-          <Boton variante="secundario" onClick={() => agregarPaso({ clase: 'running', tipo: 'calidad' })}>
-            Running calidad
-          </Boton>
-          <Boton variante="secundario" onClick={() => agregarPaso({ clase: 'running', tipo: 'fondo' })}>
-            Fondo largo
-          </Boton>
-          <Boton variante="secundario" onClick={() => agregarPaso({ clase: 'libre' })}>
-            Libre
-          </Boton>
-        </div>
+          </>
+        ) : (
+          <div className="space-y-2">
+            {RUTINAS_ESTANDAR.map((r) => (
+              <button key={r.id} type="button" onClick={() => setConfirmar(r.id)} className="w-full rounded-xl border border-linea px-4 py-3 text-left">
+                <span className="block text-[17px]">{r.nombre}</span>
+                <span className="block text-sm text-texto2">{r.descripcion}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </Hoja>
     </div>
   );
@@ -169,86 +183,167 @@ export function EditorRutina({ onVolver }: { onVolver: () => void }) {
 function EditorPlantilla({ id, onVolver }: { id: string; onVolver: () => void }) {
   const { datos, actualizar } = useDatos();
   const [editando, setEditando] = useState<EjercicioDef | 'nuevo' | null>(null);
+  const [agregando, setAgregando] = useState(false);
+  const [confirmarEliminar, setConfirmarEliminar] = useState(false);
   const plantilla = datos.rutina.plantillas.find((p) => p.id === id);
 
   if (!plantilla) {
     return (
       <div>
-        <Volver onClick={onVolver}>Rutina</Volver>
+        <Volver onClick={onVolver}>Plan semanal</Volver>
         <p className="text-texto2">Esta sesión ya no existe.</p>
       </div>
     );
   }
 
-  const enUso = datos.rutina.secuencia.some((p) => p.clase === 'gym' && p.plantillaId === id);
-  const cambiar = (f: (p: PlantillaGym) => PlantillaGym) => actualizar((d) => ({ ...d, rutina: { ...d.rutina, plantillas: d.rutina.plantillas.map((p) => (p.id === id ? f(p) : p)) } }));
-
-  const guardarEjercicio = (e: EjercicioDef) => {
-    cambiar((p) => ({ ...p, ejercicios: p.ejercicios.some((x) => x.id === e.id) ? p.ejercicios.map((x) => (x.id === e.id ? e : x)) : [...p.ejercicios, e] }));
-    setEditando(null);
-  };
+  const enCurso = datos.borradorGym?.sesion.plantillaId === id;
 
   return (
     <div>
-      <Volver onClick={onVolver}>Rutina</Volver>
-      <Campo etiqueta="Nombre de la sesión" valor={plantilla.nombre} onCambio={(v) => cambiar((p) => ({ ...p, nombre: v }))} teclado="text" />
+      <Volver onClick={onVolver}>Plan semanal</Volver>
+      <Campo etiqueta="Nombre de la sesión" valor={plantilla.nombre} onCambio={(v) => actualizar((d) => renombrarPlantilla(d, id, v))} teclado="text" />
+      <div className="mt-3 flex items-center justify-between">
+        <span className="text-[15px]">Veces por semana</span>
+        <Contador valor={plantilla.vecesPorSemana} etiqueta="veces por semana" onCambio={(v) => actualizar((d) => fijarVeces(d, { clase: 'gym', plantillaId: id }, v))} />
+      </div>
 
-      <ul className="mt-5 border-t border-linea">
-        {plantilla.ejercicios.map((e, k) => (
-          <li key={e.id} className="flex items-center gap-1 border-b border-linea">
-            <button type="button" onClick={() => setEditando(e)} className="min-w-0 flex-1 py-3 text-left">
-              <span className="block text-[15px]">
-                {e.nombre}
-                {e.esProtocoloTobillo && <span className="text-texto2"> · tobillo</span>}
-              </span>
-              <span className="block text-sm text-texto2">
-                {e.series} × {e.rangoReps[0]}–{e.rangoReps[1]}
-                {e.modo === 'tiempo' ? ' s' : ''} · {REGLAS_TIPO[e.tipo].etiqueta.toLowerCase()}
-              </span>
-            </button>
-            <BotonIcono etiqueta="Subir" disabled={k === 0} onClick={() => cambiar((p) => ({ ...p, ejercicios: mover(p.ejercicios, k, -1) }))}>
-              ↑
-            </BotonIcono>
-            <BotonIcono etiqueta="Bajar" disabled={k === plantilla.ejercicios.length - 1} onClick={() => cambiar((p) => ({ ...p, ejercicios: mover(p.ejercicios, k, 1) }))}>
-              ↓
-            </BotonIcono>
-          </li>
-        ))}
-      </ul>
-      <Boton variante="secundario" className="mt-4" onClick={() => setEditando('nuevo')}>
+      {plantilla.ejercicios.length ? (
+        <ul className="mt-4 border-t border-linea">
+          {plantilla.ejercicios.map((e, k) => (
+            <li key={e.id} className="flex items-center gap-1 border-b border-linea">
+              <button type="button" onClick={() => setEditando(e)} className="min-w-0 flex-1 py-3 text-left">
+                <span className="block text-[15px]">
+                  {e.nombre}
+                  {e.esProtocoloTobillo && <span className="text-texto2"> · tobillo</span>}
+                </span>
+                <span className="block text-sm text-texto2">
+                  {e.series} × {e.rangoReps[0]}–{e.rangoReps[1]}
+                  {e.modo === 'tiempo' ? ' s' : ''} · {REGLAS_TIPO[e.tipo].etiqueta.toLowerCase()}
+                </span>
+              </button>
+              <BotonIcono etiqueta="Subir" disabled={k === 0} onClick={() => actualizar((d) => moverEjercicio(d, id, k, -1))}>
+                ↑
+              </BotonIcono>
+              <BotonIcono etiqueta="Bajar" disabled={k === plantilla.ejercicios.length - 1} onClick={() => actualizar((d) => moverEjercicio(d, id, k, 1))}>
+                ↓
+              </BotonIcono>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-4 text-[15px] text-texto2">Todavía no tiene ejercicios.</p>
+      )}
+      <Boton variante="secundario" className="mt-4" onClick={() => setAgregando(true)}>
         Agregar ejercicio
       </Boton>
 
       <div className="mt-8">
-        <Boton
-          variante="peligro"
-          disabled={enUso}
-          onClick={() => {
-            actualizar((d) => ({ ...d, rutina: { ...d.rutina, plantillas: d.rutina.plantillas.filter((p) => p.id !== id) } }));
-            onVolver();
-          }}
-        >
-          Eliminar sesión
-        </Boton>
-        {enUso && <p className="mt-2 text-sm text-texto2">Para eliminarla, primero quítala de la secuencia. El historial se conserva siempre.</p>}
+        {confirmarEliminar ? (
+          <Boton
+            variante="peligro"
+            onClick={() => {
+              actualizar((d) => eliminarPlantilla(d, id));
+              onVolver();
+            }}
+          >
+            Sí, eliminar {plantilla.nombre}
+          </Boton>
+        ) : (
+          <Boton variante="texto" className="w-full" disabled={enCurso} onClick={() => setConfirmarEliminar(true)}>
+            Eliminar sesión
+          </Boton>
+        )}
+        <p className="mt-1 text-center text-sm text-texto2">{enCurso ? 'Termina la sesión en curso para eliminarla.' : 'El historial de esta sesión se conserva.'}</p>
       </div>
+
+      {agregando && (
+        <SelectorEjercicio
+          yaEsta={plantilla.ejercicios.map((e) => e.id)}
+          onCerrar={() => setAgregando(false)}
+          onElegir={(ejercicioId) => {
+            const def = definicionPara(datos, ejercicioId);
+            if (def) actualizar((d) => agregarEjercicio(d, id, def));
+            setAgregando(false);
+          }}
+          onCrear={() => {
+            setAgregando(false);
+            setEditando('nuevo');
+          }}
+        />
+      )}
 
       {editando && (
         <EditorEjercicio
           inicial={editando === 'nuevo' ? undefined : editando}
           onCerrar={() => setEditando(null)}
-          onGuardar={guardarEjercicio}
+          onGuardar={(e) => {
+            actualizar((d) => guardarEjercicio(d, id, e));
+            setEditando(null);
+          }}
           onQuitar={
             editando === 'nuevo'
               ? undefined
               : () => {
-                  cambiar((p) => ({ ...p, ejercicios: p.ejercicios.filter((x) => x.id !== editando.id) }));
+                  actualizar((d) => quitarEjercicio(d, id, editando.id));
                   setEditando(null);
                 }
           }
         />
       )}
     </div>
+  );
+}
+
+const sinTildes = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+type Filtro = 'todos' | 'tuyos' | Grupo;
+
+function SelectorEjercicio({ yaEsta, onElegir, onCrear, onCerrar }: { yaEsta: string[]; onElegir: (id: string) => void; onCrear: () => void; onCerrar: () => void }) {
+  const { datos } = useDatos();
+  const [buscar, setBuscar] = useState('');
+  const [filtro, setFiltro] = useState<Filtro>('todos');
+  const tuyos = misEjercicios(datos);
+  const q = sinTildes(buscar.trim());
+  const coincide = (nombre: string) => !q || sinTildes(nombre).includes(q);
+
+  const filas = [
+    ...(filtro === 'todos' || filtro === 'tuyos' ? tuyos.map((e) => ({ id: e.id, nombre: e.nombre, sub: 'Tuyo' })) : []),
+    ...(filtro === 'tuyos' ? [] : CATALOGO.filter((c) => filtro === 'todos' || c.grupo === filtro).map((c) => ({ id: c.id, nombre: c.nombre, sub: NOMBRE_GRUPO[c.grupo] }))),
+  ].filter((f) => coincide(f.nombre));
+
+  const filtros: [Filtro, string][] = [['todos', 'Todos'], ...(tuyos.length ? ([['tuyos', 'Tuyos']] as [Filtro, string][]) : []), ...(Object.entries(NOMBRE_GRUPO) as [Grupo, string][])];
+
+  return (
+    <Hoja abierta onCerrar={onCerrar} titulo="Agregar ejercicio">
+      <Campo etiqueta="Buscar" valor={buscar} onCambio={setBuscar} teclado="text" placeholder="press, remo, sentadilla…" />
+      <div className="sin-barra -mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1">
+        {filtros.map(([v, e]) => (
+          <button key={v} type="button" onClick={() => setFiltro(v)} aria-pressed={filtro === v} className={`h-9 shrink-0 rounded-full px-3.5 text-sm ${filtro === v ? 'bg-texto text-fondo' : 'border border-linea text-texto2'}`}>
+            {e}
+          </button>
+        ))}
+      </div>
+      {filas.length ? (
+        <ul className="mt-2 divide-y divide-linea border-y border-linea">
+          {filas.map((f) => {
+            const esta = yaEsta.includes(f.id);
+            return (
+              <li key={f.id}>
+                <button type="button" disabled={esta} onClick={() => onElegir(f.id)} className="flex w-full items-baseline justify-between gap-3 py-3 text-left disabled:opacity-40">
+                  <span className="text-[15px]">{f.nombre}</span>
+                  <span className="shrink-0 text-sm text-texto2">{esta ? 'ya está' : f.sub}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="mt-3 text-[15px] text-texto2">No hay ejercicios con ese nombre.</p>
+      )}
+      <Boton variante="secundario" className="mt-4" onClick={onCrear}>
+        Crear ejercicio propio
+      </Boton>
+    </Hoja>
   );
 }
 
@@ -370,7 +465,7 @@ function EditorEjercicio({ inicial, onGuardar, onQuitar, onCerrar }: { inicial?:
             Protocolo de tobillo (obligatorio para cerrar la sesión)
           </Casilla>
         </div>
-        {inicial && <p className="text-sm text-texto2">Cambiar el nombre o el tipo no borra el historial de este ejercicio.</p>}
+        {inicial && <p className="text-sm text-texto2">Los cambios (salvo las series) se aplican a este ejercicio en todas tus sesiones. El historial se conserva.</p>}
         {error && <p className="text-sm text-alerta">{error}</p>}
         <Boton onClick={guardar}>Guardar ejercicio</Boton>
         {onQuitar &&

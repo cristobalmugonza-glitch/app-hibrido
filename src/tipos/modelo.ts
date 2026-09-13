@@ -1,17 +1,21 @@
-// Modelo de datos. Todo lo que el usuario puede cambiar vive en Datos;
-// la lógica del motor nunca asume nombres de ejercicios ni de días.
+// Modelo de datos (versión 2). Todo lo que el usuario puede cambiar vive en Datos;
+// la lógica del motor nunca asume nombres de ejercicios, de bloques ni de días.
 
 export type Sexo = 'hombre' | 'mujer';
+export type Objetivo = 'perder_grasa' | 'mantener' | 'ganar_musculo';
 
 export type Perfil = {
   sexo: Sexo;
+  edad?: number;
   altura: number; // cm
   pesoInicial: number; // kg
   fcMax: number;
   fechaInicio: string; // YYYY-MM-DD
+  objetivo: Objetivo;
   caloriasObjetivo: number;
   proteinaObjetivo: number; // g/día
   grasaObjetivo: number; // g/día
+  pisoKcal: number; // la calibración nunca propone bajar de acá
   topeKmSemanal: number;
   topeFondoKm: number;
   fondoKmInicial: number;
@@ -19,15 +23,11 @@ export type Perfil = {
   ritmoSemillaSegKm: number; // se usa hasta que exista un test de 8 km
 };
 
-export type TipoEjercicio =
-  | 'compuesto_pesado'
-  | 'compuesto_liviano'
-  | 'aislamiento'
-  | 'calistenia_peso_corporal';
+export type TipoEjercicio = 'compuesto_pesado' | 'compuesto_liviano' | 'aislamiento' | 'calistenia_peso_corporal';
 
 // carga: peso × reps (en calistenia, peso = lastre extra)
-// reps: solo repeticiones (banda elástica)
-// tiempo: segundos (equilibrio)
+// reps: solo repeticiones (banda elástica, peso corporal sin lastre)
+// tiempo: segundos (equilibrio, plancha)
 export type ModoRegistro = 'carga' | 'reps' | 'tiempo';
 
 export type Musculo =
@@ -39,10 +39,13 @@ export type Musculo =
   | 'triceps'
   | 'cuadriceps'
   | 'isquios_gluteos'
-  | 'gemelos';
+  | 'gemelos'
+  | 'abdomen';
 
 export type Prioridad = 'alta' | 'media' | 'mantencion';
 
+// Un ejercicio dentro de una sesión. El id identifica su historial: el mismo ejercicio del catálogo
+// en dos sesiones distintas comparte progresión.
 export type EjercicioDef = {
   id: string;
   nombre: string;
@@ -59,35 +62,31 @@ export type EjercicioDef = {
   nota?: string;
 };
 
-export type PlantillaGym = { id: string; nombre: string; ejercicios: EjercicioDef[] };
+export type PlantillaGym = { id: string; nombre: string; ejercicios: EjercicioDef[]; vecesPorSemana: number };
 
 export type TipoRunning = 'z2' | 'calidad' | 'fondo';
 
-export type PasoSecuencia =
-  | { id: string; clase: 'gym'; plantillaId: string }
-  | { id: string; clase: 'running'; tipo: TipoRunning }
-  | { id: string; clase: 'libre' };
+export type RefBloque = { clase: 'gym'; plantillaId: string } | { clase: 'running'; tipo: TipoRunning };
 
 export type Rutina = {
   plantillas: PlantillaGym[];
-  secuencia: PasoSecuencia[];
+  running: Record<TipoRunning, number>; // veces por semana
   prioridades: Record<Musculo, Prioridad>;
 };
 
-export type EstadoCola = { posicion: number; vueltasCompletadas: number };
+export type TipoSemana = 'carga' | 'descarga';
 
-export type RegistroCola = {
-  fecha: string; // ISO con hora
-  pasoId: string;
-  estado: 'hecha' | 'saltada';
-  sesionId?: string;
-};
+// Se guarda al empezar cada semana: fija su tipo y cuántas sesiones había planificadas en ese momento.
+export type PlanSemana = { inicio: string; tipo: TipoSemana; sesiones: number; manual?: boolean };
 
 export type SerieRegistrada = { peso: number; reps: number; alFallo?: boolean };
 
 export type EjercicioRegistrado = {
   ejercicioId: string;
   nombre: string;
+  // Copia de los músculos al momento de entrenar: el volumen histórico no cambia si editas la rutina.
+  musculos?: Musculo[];
+  secundarios?: Musculo[];
   series: SerieRegistrada[];
   notas?: string;
 };
@@ -97,10 +96,7 @@ export type SesionGym = {
   fecha: string; // ISO con hora
   plantillaId: string;
   nombre: string;
-  ciclo: number;
-  vuelta: number;
   descarga: boolean;
-  planificada: boolean;
   ejercicios: EjercicioRegistrado[];
 };
 
@@ -108,9 +104,6 @@ export type SesionRunning = {
   id: string;
   fecha: string;
   tipo: TipoRunning | 'test';
-  ciclo: number;
-  vuelta: number;
-  planificada: boolean;
   distanciaKm: number;
   duracionMin: number;
   fcPromedio: number;
@@ -121,13 +114,12 @@ export type SesionRunning = {
 
 export type RegistroPeso = { fecha: string; peso: number };
 
-export type ZonaMolestia = 'tobillo_der' | 'rodilla' | 'cadera' | 'otro';
+export type ZonaMolestia = 'tobillo' | 'rodilla' | 'cadera' | 'espalda' | 'hombro' | 'otro';
 export type Molestia = { fecha: string; zona: ZonaMolestia; intensidad: 1 | 2 | 3; nota?: string };
 
 // Medidas y estimación Navy van juntas: con cuello + cintura se calcula el % de grasa.
 export type Medidas = {
   fecha: string;
-  ciclo: number;
   cintura: number;
   cuello?: number;
   cadera?: number;
@@ -138,22 +130,20 @@ export type Medidas = {
   fotoTomada?: boolean;
 };
 
-export type BenchmarkDominadas = { fecha: string; ciclo: number; lastreKg: number; reps: number };
+export type BenchmarkDominadas = { fecha: string; lastreKg: number; reps: number };
 
 export type EntrenoHoy = { fecha: string; hora: string | null; ayunoRoto: boolean };
 
-export type BorradorGym = {
-  sesion: SesionGym;
-  pasoId: string | null; // null = sesión no planificada
-  indiceEjercicio: number;
-};
+export type BorradorGym = { sesion: SesionGym; indiceEjercicio: number };
 
 export type Datos = {
-  version: 1;
+  version: 2;
   perfil: Perfil;
   rutina: Rutina;
-  cola: EstadoCola;
-  historialCola: RegistroCola[];
+  ejerciciosPropios: EjercicioDef[]; // biblioteca propia, disponible para cualquier sesión
+  planes: PlanSemana[];
+  mesociclosPrevios: number; // bloques completados antes de que existiera el plan semanal
+  ultimoAjusteKcal?: string; // ISO; la calibración espera 2 semanas después de un ajuste
   sesionesGym: SesionGym[];
   sesionesRunning: SesionRunning[];
   pesos: RegistroPeso[];

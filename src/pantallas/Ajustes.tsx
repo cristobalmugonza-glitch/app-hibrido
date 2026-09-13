@@ -1,24 +1,26 @@
 import { useRef, useState } from 'react';
-import type { Datos, Perfil, Sexo } from '../tipos/modelo';
+import type { Datos, Objetivo, Perfil, Sexo } from '../tipos/modelo';
 import { useDatos } from '../almacen/contexto';
 import { exportarJSON, leerJSON } from '../almacen/exportar';
 import { aNum, Boton, Campo, deNum, Encabezado, Fila, Hoja, Segmentado, Volver } from '../componentes/ui';
-import { datosSemilla } from '../data/semilla';
+import { PorQue } from '../componentes/PorQue';
 import { EditorRutina } from './EditorRutina';
 import { fmt0, fmt1, ritmo } from '../motor/formato';
-import { PISO_KCAL, pesoActual, pisoGrasa } from '../motor/nutricion';
-import { contexto, reiniciarCiclo } from '../motor/secuencia';
+import { pesoActual, pisoGrasa } from '../motor/nutricion';
+import { calcularObjetivos } from '../motor/perfil';
+import { corre, sesionesPlanificadas } from '../motor/planificacion';
 
 type Vista = null | 'perfil' | 'rutina';
 
+const NOMBRE_OBJETIVO: Record<Objetivo, string> = { perder_grasa: 'Perder grasa', mantener: 'Mantener', ganar_musculo: 'Ganar músculo' };
+
 export function Ajustes({ onVolver }: { onVolver: () => void }) {
-  const { datos, actualizar } = useDatos();
+  const { datos, reemplazar } = useDatos();
   const [vista, setVista] = useState<Vista>(null);
   const [importado, setImportado] = useState<Datos | null>(null);
   const [error, setError] = useState('');
-  const [confirmar, setConfirmar] = useState<null | 'reiniciar' | 'borrar'>(null);
+  const [confirmarBorrar, setConfirmarBorrar] = useState(false);
   const archivo = useRef<HTMLInputElement>(null);
-  const ctx = contexto(datos.cola);
 
   if (vista === 'rutina') return <EditorRutina onVolver={() => setVista(null)} />;
 
@@ -32,13 +34,15 @@ export function Ajustes({ onVolver }: { onVolver: () => void }) {
     }
   };
 
+  const { perfil } = datos;
+
   return (
     <div>
       <Volver onClick={onVolver}>Más</Volver>
       <Encabezado>Ajustes</Encabezado>
       <div className="mt-4">
-        <Fila titulo="Perfil y objetivos" sub={`${fmt1(pesoActual(datos))} kg · ${fmt0(datos.perfil.caloriasObjetivo)} kcal · FC máx ${datos.perfil.fcMax}`} onClick={() => setVista('perfil')} />
-        <Fila titulo="Rutina y secuencia" sub={`${datos.rutina.plantillas.length} sesiones de gym · ${datos.rutina.secuencia.length} pasos por vuelta`} onClick={() => setVista('rutina')} />
+        <Fila titulo="Perfil y objetivos" sub={`${NOMBRE_OBJETIVO[perfil.objetivo]} · ${fmt1(pesoActual(datos))} kg · ${fmt0(perfil.caloriasObjetivo)} kcal`} onClick={() => setVista('perfil')} />
+        <Fila titulo="Plan semanal" sub={`${sesionesPlanificadas(datos)} sesiones por semana · ejercicios y series`} onClick={() => setVista('rutina')} />
       </div>
 
       <section className="mt-8">
@@ -56,20 +60,11 @@ export function Ajustes({ onVolver }: { onVolver: () => void }) {
         </div>
       </section>
 
-      <section className="mt-8">
-        <h2 className="text-sm text-texto2">Ciclo</h2>
-        <p className="mt-1 text-sm text-texto2">
-          Ciclo {ctx.ciclo}, vuelta {ctx.vuelta}. Reiniciar vuelve a la vuelta 1 y a la primera sesión, sin borrar historial.
-        </p>
-        <div className="mt-3 space-y-2">
-          <Boton variante="secundario" onClick={() => setConfirmar('reiniciar')}>
-            Reiniciar ciclo
-          </Boton>
-          <Boton variante="peligro" onClick={() => setConfirmar('borrar')}>
-            Borrar todo
-          </Boton>
-        </div>
-      </section>
+      <div className="mt-8">
+        <Boton variante="peligro" onClick={() => setConfirmarBorrar(true)}>
+          Borrar todo
+        </Boton>
+      </div>
 
       {vista === 'perfil' && <FormPerfil onCerrar={() => setVista(null)} />}
 
@@ -80,7 +75,7 @@ export function Ajustes({ onVolver }: { onVolver: () => void }) {
         <Boton
           className="mt-5"
           onClick={() => {
-            if (importado) actualizar(() => importado);
+            if (importado) reemplazar(importado);
             setImportado(null);
           }}
         >
@@ -88,59 +83,74 @@ export function Ajustes({ onVolver }: { onVolver: () => void }) {
         </Boton>
       </Hoja>
 
-      <Hoja abierta={confirmar !== null} onCerrar={() => setConfirmar(null)} titulo={confirmar === 'borrar' ? '¿Borrar todo?' : '¿Reiniciar el ciclo?'}>
-        <p className="text-[15px] text-texto2">
-          {confirmar === 'borrar' ? 'Se borran todas tus sesiones, pesos y medidas, y vuelve la rutina semilla. Exporta un respaldo antes si lo quieres conservar.' : 'La cola vuelve a la primera sesión y a la vuelta 1 del ciclo actual.'}
-        </p>
-        <Boton
-          className="mt-5"
-          variante={confirmar === 'borrar' ? 'peligro' : 'primario'}
-          onClick={() => {
-            if (confirmar === 'borrar') actualizar(() => datosSemilla());
-            else actualizar((d) => ({ ...d, cola: reiniciarCiclo(d.cola) }));
-            setConfirmar(null);
-          }}
-        >
-          {confirmar === 'borrar' ? 'Sí, borrar todo' : 'Reiniciar ciclo'}
+      <Hoja abierta={confirmarBorrar} onCerrar={() => setConfirmarBorrar(false)} titulo="¿Borrar todo?">
+        <p className="text-[15px] text-texto2">Se borran tus sesiones, pesos, medidas y tu plan, y vuelves a la configuración inicial. Exporta un respaldo antes si lo quieres conservar.</p>
+        <Boton className="mt-5" variante="peligro" onClick={() => reemplazar(null)}>
+          Sí, borrar todo
         </Boton>
       </Hoja>
     </div>
   );
 }
 
-const CAMPOS: { k: keyof Perfil; etiqueta: string; unidad?: string }[] = [
+type Clave = 'altura' | 'pesoInicial' | 'fcMax' | 'caloriasObjetivo' | 'proteinaObjetivo' | 'grasaObjetivo' | 'pisoKcal' | 'z2Km' | 'fondoKmInicial' | 'topeFondoKm' | 'topeKmSemanal';
+
+const CUERPO: { k: Clave; etiqueta: string; unidad: string }[] = [
   { k: 'altura', etiqueta: 'Altura', unidad: 'cm' },
   { k: 'pesoInicial', etiqueta: 'Peso inicial', unidad: 'kg' },
   { k: 'fcMax', etiqueta: 'FC máxima', unidad: 'lpm' },
+];
+const NUTRICION: { k: Clave; etiqueta: string; unidad: string }[] = [
   { k: 'caloriasObjetivo', etiqueta: 'Calorías', unidad: 'kcal' },
+  { k: 'pisoKcal', etiqueta: 'Piso de seguridad', unidad: 'kcal' },
   { k: 'proteinaObjetivo', etiqueta: 'Proteína', unidad: 'g' },
   { k: 'grasaObjetivo', etiqueta: 'Grasa', unidad: 'g' },
+];
+const RUNNING: { k: Clave; etiqueta: string; unidad: string }[] = [
   { k: 'z2Km', etiqueta: 'Distancia Z2', unidad: 'km' },
   { k: 'fondoKmInicial', etiqueta: 'Fondo inicial', unidad: 'km' },
   { k: 'topeFondoKm', etiqueta: 'Tope fondo', unidad: 'km' },
   { k: 'topeKmSemanal', etiqueta: 'Tope semanal', unidad: 'km' },
 ];
+const TODOS = [...CUERPO, ...NUTRICION, ...RUNNING];
 
 function FormPerfil({ onCerrar }: { onCerrar: () => void }) {
   const { datos, actualizar } = useDatos();
   const [sexo, setSexo] = useState<Sexo>(datos.perfil.sexo);
-  const [valores, setValores] = useState<Record<string, string>>(() => Object.fromEntries(CAMPOS.map((c) => [c.k, deNum(datos.perfil[c.k] as number)])));
-  const [ritmoSemilla, setRitmoSemilla] = useState(ritmo(datos.perfil.ritmoSemillaSegKm));
+  const [objetivo, setObjetivo] = useState<Objetivo>(datos.perfil.objetivo);
+  const [edad, setEdad] = useState(deNum(datos.perfil.edad));
+  const [valores, setValores] = useState<Record<string, string>>(() => Object.fromEntries(TODOS.map((c) => [c.k, deNum(datos.perfil[c.k])])));
+  const [ritmoTexto, setRitmoTexto] = useState(ritmo(datos.perfil.ritmoSemillaSegKm));
+  const [gasto, setGasto] = useState<number | null>(null);
   const peso = pesoActual(datos);
-  const kcal = aNum(valores.caloriasObjetivo ?? '');
-  const grasa = aNum(valores.grasaObjetivo ?? '');
+  const v = (k: Clave) => aNum(valores[k] ?? '');
+  const e = aNum(edad);
+  const kcal = v('caloriasObjetivo');
+  const piso = v('pisoKcal');
+  const grasa = v('grasaObjetivo');
+  const altura = v('altura');
+
+  const recalcular = () => {
+    if (!e || !altura) return;
+    const o = calcularObjetivos({ sexo, peso, altura, edad: e, objetivo, sesiones: sesionesPlanificadas(datos) });
+    setValores((x) => ({ ...x, caloriasObjetivo: String(o.kcal), proteinaObjetivo: String(o.proteina), grasaObjetivo: String(o.grasa), pisoKcal: String(o.piso) }));
+    setGasto(o.gasto);
+  };
 
   const guardar = () => {
-    const nuevo: Perfil = { ...datos.perfil, sexo };
-    for (const c of CAMPOS) {
-      const n = aNum(valores[c.k] ?? '');
-      if (n !== null && n > 0) (nuevo as Record<keyof Perfil, unknown>)[c.k] = n;
+    const nuevo: Perfil = { ...datos.perfil, sexo, objetivo, ...(e && e > 0 ? { edad: Math.round(e) } : {}) };
+    for (const c of TODOS) {
+      const n = v(c.k);
+      if (n !== null && n > 0) nuevo[c.k] = n;
     }
-    const [m, s] = ritmoSemilla.split(':').map(Number);
+    const [m, s] = ritmoTexto.split(':').map(Number);
     if (isFinite(m) && isFinite(s)) nuevo.ritmoSemillaSegKm = m * 60 + s;
     actualizar((d) => ({ ...d, perfil: nuevo }));
     onCerrar();
   };
+
+  const campos = (lista: typeof TODOS) =>
+    lista.map((c) => <Campo key={c.k} etiqueta={c.etiqueta} valor={valores[c.k] ?? ''} onCambio={(x) => setValores((y) => ({ ...y, [c.k]: x }))} unidad={c.unidad} />);
 
   return (
     <Hoja abierta onCerrar={onCerrar} titulo="Perfil y objetivos">
@@ -153,14 +163,43 @@ function FormPerfil({ onCerrar }: { onCerrar: () => void }) {
         onCambio={setSexo}
       />
       <div className="mt-4 grid grid-cols-2 gap-3">
-        {CAMPOS.map((c) => (
-          <Campo key={c.k} etiqueta={c.etiqueta} valor={valores[c.k] ?? ''} onCambio={(v) => setValores((x) => ({ ...x, [c.k]: v }))} unidad={c.unidad} />
-        ))}
-        <Campo etiqueta="Ritmo sin test" valor={ritmoSemilla} onCambio={setRitmoSemilla} unidad="/km" teclado="text" />
+        <Campo etiqueta="Edad" valor={edad} onCambio={setEdad} unidad="años" teclado="numeric" />
+        {campos(CUERPO)}
       </div>
-      {kcal !== null && kcal < PISO_KCAL && <p className="mt-3 text-sm text-alerta">Bajo el piso de seguridad de {PISO_KCAL} kcal.</p>}
-      {grasa !== null && grasa < pisoGrasa(peso) && <p className="mt-3 text-sm text-alerta">Bajo el piso de grasa ({pisoGrasa(peso)} g = 0,8 g/kg).</p>}
-      <Boton className="mt-5" onClick={guardar}>
+
+      <h3 className="mb-2 mt-6 text-sm text-texto2">Objetivo</h3>
+      <Segmentado<Objetivo>
+        opciones={[
+          { valor: 'perder_grasa', etiqueta: 'Perder' },
+          { valor: 'mantener', etiqueta: 'Mantener' },
+          { valor: 'ganar_musculo', etiqueta: 'Ganar' },
+        ]}
+        valor={objetivo}
+        onCambio={setObjetivo}
+      />
+      <div className="mt-4 grid grid-cols-2 gap-3">{campos(NUTRICION)}</div>
+      <div className="mt-2 flex items-center gap-2">
+        <Boton variante="texto" className="!px-0" disabled={!e || !altura} onClick={recalcular}>
+          Recalcular con mis datos
+        </Boton>
+        <PorQue id="objetivo_kcal" pequeno />
+      </div>
+      {gasto !== null && <p className="text-sm text-texto2">Gasto estimado: {fmt0(gasto)} kcal al día. Revisa y guarda.</p>}
+      {!e && <p className="text-sm text-texto2">Para recalcular, completa tu edad.</p>}
+      {kcal !== null && piso !== null && kcal < piso && <p className="mt-2 text-sm text-alerta">Bajo tu piso de seguridad de {fmt0(piso)} kcal.</p>}
+      {grasa !== null && grasa < pisoGrasa(peso) && <p className="mt-2 text-sm text-alerta">Bajo el piso de grasa ({pisoGrasa(peso)} g = 0,8 g/kg).</p>}
+
+      {corre(datos) && (
+        <>
+          <h3 className="mb-2 mt-6 text-sm text-texto2">Running</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <Campo etiqueta="Ritmo sin test" valor={ritmoTexto} onCambio={setRitmoTexto} unidad="/km" teclado="text" />
+            {campos(RUNNING)}
+          </div>
+        </>
+      )}
+
+      <Boton className="mt-6" onClick={guardar}>
         Guardar
       </Boton>
     </Hoja>

@@ -1,17 +1,18 @@
 import type { Datos } from '../tipos/modelo';
-import type { Contexto } from './secuencia';
+import { diasEntre } from './fechas';
+import { corre } from './planificacion';
 
-// Frecuencias en ciclos (1 ciclo = 4 vueltas ≈ 4 semanas).
-const CADA = { medidas: 1, test: 2, dominadas: 2 };
+// Frecuencias en días reales: medidas cada 4 semanas, tests cada 8.
+const CADA = { medidas: 28, test: 56, dominadas: 56 };
 
-function vencido(ultimoCiclo: number | undefined, ciclo: number, cada: number) {
-  return ultimoCiclo === undefined || ciclo - ultimoCiclo >= cada;
-}
+export const tieneDominadas = (datos: Datos) => datos.rutina.plantillas.some((p) => p.vecesPorSemana > 0 && p.ejercicios.some((e) => /dominada/i.test(e.nombre)));
 
-export function pendientes(datos: Datos, ctx: Contexto): string[] {
+const vencido = (fecha: string | undefined, ahora: Date, dias: number) => !fecha || diasEntre(fecha, ahora) >= dias;
+
+export function pendientes(datos: Datos, ahora = new Date()): string[] {
   const p: string[] = [];
-  if (vencido(datos.medidas.at(-1)?.ciclo, ctx.ciclo, CADA.medidas)) p.push('medidas y foto');
-  if (vencido(datos.sesionesRunning.filter((s) => s.tipo === 'test').at(-1)?.ciclo, ctx.ciclo, CADA.test)) p.push('test 8 km');
-  if (vencido(datos.dominadas.at(-1)?.ciclo, ctx.ciclo, CADA.dominadas)) p.push('dominadas con lastre');
+  if (vencido(datos.medidas.at(-1)?.fecha, ahora, CADA.medidas)) p.push('medidas y foto');
+  if (corre(datos) && vencido(datos.sesionesRunning.filter((s) => s.tipo === 'test').at(-1)?.fecha, ahora, CADA.test)) p.push('test 8 km');
+  if (tieneDominadas(datos) && vencido(datos.dominadas.at(-1)?.fecha, ahora, CADA.dominadas)) p.push('dominadas con lastre');
   return p;
 }

@@ -21,7 +21,7 @@ export function Mas() {
       <Encabezado>Más</Encabezado>
       <div className="mt-4">
         <Fila titulo="Ciencia" sub="El por qué de cada recomendación y sus referencias" onClick={() => setSub('ciencia')} />
-        <Fila titulo="Ajustes" sub="Perfil, rutina, secuencia y respaldo" onClick={() => setSub('ajustes')} />
+        <Fila titulo="Ajustes" sub="Perfil, plan semanal y respaldo" onClick={() => setSub('ajustes')} />
       </div>
     </div>
   );

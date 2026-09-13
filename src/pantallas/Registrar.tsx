@@ -1,67 +1,58 @@
 import { useState } from 'react';
-import type { Medidas, Sexo, TipoRunning, ZonaMolestia } from '../tipos/modelo';
+import type { Medidas, Sexo, ZonaMolestia } from '../tipos/modelo';
 import { useDatos } from '../almacen/contexto';
-import { aNum, Boton, Campo, Casilla, deNum, Encabezado, Fila, Hoja, Nota, Segmentado } from '../componentes/ui';
+import { aNum, Boton, Campo, Casilla, deNum, Fila, Hoja, Nota, Segmentado } from '../componentes/ui';
 import { PorQue } from '../componentes/PorQue';
 import { FormRunning } from './FormRunning';
+import { tieneDominadas } from '../motor/benchmarks';
 import { ahoraIso, haceCuanto } from '../motor/fechas';
 import { fmt1, fmt2, ritmo } from '../motor/formato';
 import { ACE, categoriaACE, mostrarNotaAbdomen, navy, ratioHombrosCintura } from '../motor/grasa';
-import { ritmoSesion } from '../motor/running';
-import { contexto } from '../motor/secuencia';
-import { iniciarGym } from '../motor/sesiones';
+import { pesoActual } from '../motor/nutricion';
+import { corre } from '../motor/planificacion';
+import { fcTest, ritmoSesion } from '../motor/running';
 
-type Formulario = null | 'peso' | 'molestia' | 'medidas' | 'test' | 'dominadas' | 'noplan';
+type Formulario = 'peso' | 'molestia' | 'medidas' | 'test' | 'dominadas';
 
-export function Registrar({ onAbrirRegistro }: { onAbrirRegistro: () => void }) {
+// Registros sueltos (peso, molestias, medidas y tests). Se abre desde Hoy.
+export function RegistrarHoja({ abierta, onCerrar }: { abierta: boolean; onCerrar: () => void }) {
   const { datos } = useDatos();
-  const [form, setForm] = useState<Formulario>(null);
-  const [runningNoPlan, setRunningNoPlan] = useState<TipoRunning | null>(null);
-  const cerrar = () => setForm(null);
+  const [form, setForm] = useState<Formulario | null>(null);
+  if (!abierta) return null;
 
-  const peso = datos.pesos.at(-1);
+  const cerrar = () => {
+    setForm(null);
+    onCerrar();
+  };
+  if (form === 'peso') return <FormPeso onCerrar={cerrar} />;
+  if (form === 'molestia') return <FormMolestia onCerrar={cerrar} />;
+  if (form === 'medidas') return <FormMedidas onCerrar={cerrar} />;
+  if (form === 'dominadas') return <FormDominadas onCerrar={cerrar} />;
+  if (form === 'test') return <FormRunning tipo="test" onCerrar={cerrar} />;
+
+  const peso = datos.pesos.length ? datos.pesos.reduce((a, b) => (b.fecha > a.fecha ? b : a)) : null;
   const medida = datos.medidas.at(-1);
   const test = datos.sesionesRunning.filter((s) => s.tipo === 'test').at(-1);
   const dom = datos.dominadas.at(-1);
 
   return (
-    <div>
-      <Encabezado>Registrar</Encabezado>
-      <div className="mt-4">
-        <Fila titulo="Peso" sub={peso ? `${fmt1(peso.peso)} kg · ${haceCuanto(peso.fecha)}` : 'Idealmente 3 veces por semana, en ayunas'} onClick={() => setForm('peso')} />
-        <Fila titulo="Molestia" sub="Tobillo, rodilla, cadera u otra" onClick={() => setForm('molestia')} />
-        <Fila titulo="Medidas y grasa" sub={medida?.grasaNavy ? `${fmt1(medida.grasaNavy)} % · ${haceCuanto(medida.fecha)}` : 'Cintura, cuello, hombros · cada ciclo'} onClick={() => setForm('medidas')} />
-        <Fila titulo="Test 8 km a 145 lpm" sub={test ? `${ritmo(ritmoSesion(test))}/km · ${haceCuanto(test.fecha)}` : 'Cada 2 ciclos'} onClick={() => setForm('test')} />
-        <Fila titulo="Dominadas con lastre" sub={dom ? `${fmt1(dom.lastreKg)} kg × ${dom.reps} · ${haceCuanto(dom.fecha)}` : 'Reps máximas con el mismo lastre · cada 2 ciclos'} onClick={() => setForm('dominadas')} />
-        <Fila titulo="Sesión no planificada" sub="Se guarda sin mover la cola" onClick={() => setForm('noplan')} />
-      </div>
-
-      {form === 'peso' && <FormPeso onCerrar={cerrar} />}
-      {form === 'molestia' && <FormMolestia onCerrar={cerrar} />}
-      {form === 'medidas' && <FormMedidas onCerrar={cerrar} />}
-      {form === 'dominadas' && <FormDominadas onCerrar={cerrar} />}
-      {form === 'test' && <FormRunning tipo="test" pasoId={null} onCerrar={cerrar} />}
-      {form === 'noplan' && (
-        <ElegirNoPlanificada
-          onCerrar={cerrar}
-          onGym={() => {
-            cerrar();
-            onAbrirRegistro();
-          }}
-          onRunning={(t) => {
-            cerrar();
-            setRunningNoPlan(t);
-          }}
-        />
+    <Hoja abierta onCerrar={onCerrar} titulo="Registrar">
+      <Fila titulo="Peso" sub={peso ? `${fmt1(peso.peso)} kg · ${haceCuanto(peso.fecha)}` : 'Idealmente 3 veces por semana, en ayunas'} onClick={() => setForm('peso')} />
+      <Fila titulo="Molestia" sub="Tobillo, rodilla, cadera, espalda u hombro" onClick={() => setForm('molestia')} />
+      <Fila titulo="Medidas y grasa" sub={medida?.grasaNavy ? `${fmt1(medida.grasaNavy)} % · ${haceCuanto(medida.fecha)}` : 'Cintura, cuello y hombros · cada 4 semanas'} onClick={() => setForm('medidas')} />
+      {corre(datos) && (
+        <Fila titulo={`Test 8 km a ${fcTest(datos.perfil.fcMax)} lpm`} sub={test ? `${ritmo(ritmoSesion(test))}/km · ${haceCuanto(test.fecha)}` : 'Cada 8 semanas'} onClick={() => setForm('test')} />
       )}
-      {runningNoPlan && <FormRunning tipo={runningNoPlan} pasoId={null} onCerrar={() => setRunningNoPlan(null)} />}
-    </div>
+      {tieneDominadas(datos) && (
+        <Fila titulo="Dominadas con lastre" sub={dom ? `${fmt1(dom.lastreKg)} kg × ${dom.reps} · ${haceCuanto(dom.fecha)}` : 'Reps máximas con el mismo lastre · cada 8 semanas'} onClick={() => setForm('dominadas')} />
+      )}
+    </Hoja>
   );
 }
 
 function FormPeso({ onCerrar }: { onCerrar: () => void }) {
   const { datos, actualizar } = useDatos();
-  const [kg, setKg] = useState(deNum(datos.pesos.at(-1)?.peso ?? datos.perfil.pesoInicial));
+  const [kg, setKg] = useState(deNum(pesoActual(datos)));
   const n = aNum(kg);
   return (
     <Hoja abierta onCerrar={onCerrar} titulo="Peso">
@@ -80,24 +71,26 @@ function FormPeso({ onCerrar }: { onCerrar: () => void }) {
   );
 }
 
+const ZONAS: [ZonaMolestia, string][] = [
+  ['tobillo', 'Tobillo'],
+  ['rodilla', 'Rodilla'],
+  ['cadera', 'Cadera'],
+  ['espalda', 'Espalda'],
+  ['hombro', 'Hombro'],
+  ['otro', 'Otra'],
+];
+
 function FormMolestia({ onCerrar }: { onCerrar: () => void }) {
   const { actualizar } = useDatos();
-  const [zona, setZona] = useState<ZonaMolestia>('tobillo_der');
+  const [zona, setZona] = useState<ZonaMolestia>('tobillo');
   const [intensidad, setIntensidad] = useState<1 | 2 | 3>(1);
   const [nota, setNota] = useState('');
   return (
     <Hoja abierta onCerrar={onCerrar} titulo="Molestia">
       <p className="mb-2 text-sm text-texto2">Zona</p>
-      <div className="grid grid-cols-2 gap-2">
-        {(
-          [
-            ['tobillo_der', 'Tobillo derecho'],
-            ['rodilla', 'Rodilla'],
-            ['cadera', 'Cadera'],
-            ['otro', 'Otra'],
-          ] as const
-        ).map(([v, e]) => (
-          <button key={v} type="button" onClick={() => setZona(v)} className={`h-11 rounded-xl text-[15px] font-medium ${zona === v ? 'bg-texto text-fondo' : 'border border-linea text-texto2'}`}>
+      <div className="grid grid-cols-3 gap-2">
+        {ZONAS.map(([v, e]) => (
+          <button key={v} type="button" onClick={() => setZona(v)} aria-pressed={zona === v} className={`h-11 rounded-xl text-[15px] font-medium ${zona === v ? 'bg-texto text-fondo' : 'border border-linea text-texto2'}`}>
             {e}
           </button>
         ))}
@@ -166,7 +159,6 @@ function FormMedidas({ onCerrar }: { onCerrar: () => void }) {
     const grasa = cu ? navy(sexo, altura, c, cu, ca) : null;
     const m: Medidas = {
       fecha: ahoraIso(),
-      ciclo: contexto(datos.cola).ciclo,
       cintura: c,
       cuello: cu,
       cadera: ca,
@@ -255,42 +247,12 @@ function FormDominadas({ onCerrar }: { onCerrar: () => void }) {
         className="mt-5"
         disabled={l === null || !r}
         onClick={() => {
-          actualizar((d) => ({ ...d, dominadas: [...d.dominadas, { fecha: ahoraIso(), ciclo: contexto(d.cola).ciclo, lastreKg: l!, reps: Math.round(r!) }] }));
+          actualizar((d) => ({ ...d, dominadas: [...d.dominadas, { fecha: ahoraIso(), lastreKg: l!, reps: Math.round(r!) }] }));
           onCerrar();
         }}
       >
         Guardar
       </Boton>
-    </Hoja>
-  );
-}
-
-function ElegirNoPlanificada({ onCerrar, onGym, onRunning }: { onCerrar: () => void; onGym: () => void; onRunning: (t: TipoRunning) => void }) {
-  const { datos, actualizar } = useDatos();
-  return (
-    <Hoja abierta onCerrar={onCerrar} titulo="Sesión no planificada">
-      <p className="mb-3 text-sm text-texto2">Se guarda en tu historial y cuenta para la progresión, pero la cola sigue donde está.</p>
-      {datos.borradorGym && <p className="mb-3 text-sm text-texto2">Termina o descarta la sesión de gym en curso antes de empezar otra.</p>}
-      <div className="space-y-2">
-        {datos.rutina.plantillas.map((p) => (
-          <Boton
-            key={p.id}
-            variante="secundario"
-            disabled={!!datos.borradorGym}
-            onClick={() => {
-              actualizar((d) => iniciarGym(d, p.id, null));
-              onGym();
-            }}
-          >
-            {p.nombre}
-          </Boton>
-        ))}
-        {(['z2', 'calidad', 'fondo'] as const).map((t) => (
-          <Boton key={t} variante="secundario" onClick={() => onRunning(t)}>
-            {{ z2: 'Running Z2', calidad: 'Running calidad', fondo: 'Fondo largo' }[t]}
-          </Boton>
-        ))}
-      </div>
     </Hoja>
   );
 }

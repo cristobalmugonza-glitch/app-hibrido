@@ -6,6 +6,9 @@ export const fmt1 = (n: number) => num1.format(n);
 export const fmt2 = (n: number) => num2.format(n);
 export const fmt0 = (n: number) => num0.format(n);
 
+// "1 ejercicio", "3 ejercicios".
+export const plural = (n: number, singular: string, varios = `${singular}s`) => `${fmt1(n)} ${n === 1 ? singular : varios}`;
+
 export function ritmo(segKm: number): string {
   if (!isFinite(segKm) || segKm <= 0) return '–';
   const s = Math.round(segKm);

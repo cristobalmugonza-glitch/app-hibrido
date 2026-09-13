@@ -4,20 +4,21 @@ import { useDatos } from '../almacen/contexto';
 import { aNum, Boton, Campo, Casilla, Hoja } from '../componentes/ui';
 import { ahoraIso } from '../motor/fechas';
 import { ritmo } from '../motor/formato';
-import { zonaDe } from '../motor/running';
-import { nombreRunning } from '../motor/secuencia';
+import { NOMBRE_RUNNING } from '../motor/planificacion';
+import { fcTest, tieneProtocoloTobillo, zonaDe } from '../motor/running';
 import { guardarRunning } from '../motor/sesiones';
 
-// Registro de una carrera. pasoId = null cuando no es parte de la cola (no la mueve).
-export function FormRunning({ tipo, pasoId, onCerrar }: { tipo: TipoRunning | 'test'; pasoId: string | null; onCerrar: () => void }) {
+export function FormRunning({ tipo, onCerrar }: { tipo: TipoRunning | 'test'; onCerrar: () => void }) {
   const { datos, actualizar } = useDatos();
+  const fcDelTest = fcTest(datos.perfil.fcMax);
   const [km, setKm] = useState(tipo === 'test' ? '8' : '');
   const [min, setMin] = useState('');
   const [seg, setSeg] = useState('');
-  const [fc, setFc] = useState(tipo === 'test' ? '145' : '');
+  const [fc, setFc] = useState(tipo === 'test' ? String(fcDelTest) : '');
   const [fcMax, setFcMax] = useState('');
   const [esTest, setEsTest] = useState(tipo === 'test');
   const [equilibrio, setEquilibrio] = useState(false);
+  const conTobillo = tieneProtocoloTobillo(datos);
 
   const distancia = aNum(km);
   const duracion = (aNum(min) ?? 0) + (aNum(seg) ?? 0) / 60;
@@ -27,26 +28,21 @@ export function FormRunning({ tipo, pasoId, onCerrar }: { tipo: TipoRunning | 't
   const guardar = () => {
     if (!valido) return;
     actualizar((d) =>
-      guardarRunning(
-        d,
-        {
-          fecha: ahoraIso(),
-          tipo: esTest ? 'test' : tipo,
-          planificada: pasoId !== null,
-          distanciaKm: distancia!,
-          duracionMin: duracion,
-          fcPromedio: fcProm!,
-          fcMaxima: aNum(fcMax) ?? undefined,
-          equilibrioHecho: equilibrio,
-        },
-        pasoId,
-      ),
+      guardarRunning(d, {
+        fecha: ahoraIso(),
+        tipo: esTest ? 'test' : tipo,
+        distanciaKm: distancia!,
+        duracionMin: duracion,
+        fcPromedio: fcProm!,
+        fcMaxima: aNum(fcMax) ?? undefined,
+        ...(conTobillo ? { equilibrioHecho: equilibrio } : {}),
+      }),
     );
     onCerrar();
   };
 
   return (
-    <Hoja abierta onCerrar={onCerrar} titulo={nombreRunning(esTest ? 'test' : tipo)}>
+    <Hoja abierta onCerrar={onCerrar} titulo={NOMBRE_RUNNING[esTest ? 'test' : tipo]}>
       <div className="grid grid-cols-2 gap-3">
         <Campo etiqueta="Distancia" valor={km} onCambio={setKm} unidad="km" />
         <Campo etiqueta="FC promedio" valor={fc} onCambio={setFc} unidad="lpm" teclado="numeric" />
@@ -68,12 +64,14 @@ export function FormRunning({ tipo, pasoId, onCerrar }: { tipo: TipoRunning | 't
       <div className="mt-2">
         {(tipo === 'z2' || tipo === 'test') && (
           <Casilla marcada={esTest} onCambio={setEsTest}>
-            Fue el test de 8 km a 145 lpm
+            Fue el test de 8 km a {fcDelTest} lpm
           </Casilla>
         )}
-        <Casilla marcada={equilibrio} onCambio={setEquilibrio}>
-          Hice equilibrio antes (2 × 30 s por lado)
-        </Casilla>
+        {conTobillo && (
+          <Casilla marcada={equilibrio} onCambio={setEquilibrio}>
+            Hice equilibrio antes (2 × 30 s por lado)
+          </Casilla>
+        )}
       </div>
 
       <Boton className="mt-4" disabled={!valido} onClick={guardar}>

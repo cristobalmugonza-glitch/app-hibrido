@@ -1,53 +1,22 @@
 import type { Datos } from '../tipos/modelo';
-import { datosSemilla } from '../data/semilla';
+import { migrar } from './migracion';
 
-const CLAVE = 'hibrido:datos:v1';
+const CLAVE = 'hibrido:datos:v2';
+// Los datos de la versión 1 nunca se sobrescriben: quedan como respaldo hasta que borres todo.
+const CLAVE_V1 = 'hibrido:datos:v1';
 
-const esObjeto = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
-
-export function esDatosValidos(x: unknown): x is Datos {
-  if (!esObjeto(x) || x.version !== 1) return false;
-  const { perfil, rutina, cola } = x;
-  return (
-    esObjeto(perfil) &&
-    typeof perfil.fcMax === 'number' &&
-    esObjeto(rutina) &&
-    Array.isArray(rutina.plantillas) &&
-    Array.isArray(rutina.secuencia) &&
-    esObjeto(cola) &&
-    typeof cola.posicion === 'number' &&
-    typeof cola.vueltasCompletadas === 'number'
-  );
-}
-
-// Completa campos que falten (por ejemplo, un respaldo de una versión anterior) sin reinyectar datos de la semilla.
-export function normalizar(d: Datos): Datos {
-  const base = datosSemilla();
-  return {
-    ...d,
-    perfil: { ...base.perfil, ...d.perfil },
-    rutina: { ...d.rutina, prioridades: { ...base.rutina.prioridades, ...d.rutina.prioridades } },
-    historialCola: d.historialCola ?? [],
-    sesionesGym: d.sesionesGym ?? [],
-    sesionesRunning: d.sesionesRunning ?? [],
-    pesos: d.pesos ?? [],
-    molestias: d.molestias ?? [],
-    medidas: d.medidas ?? [],
-    dominadas: d.dominadas ?? [],
-  };
-}
-
-export function cargar(): Datos {
-  try {
-    const crudo = localStorage.getItem(CLAVE);
-    if (crudo) {
-      const obj: unknown = JSON.parse(crudo);
-      if (esDatosValidos(obj)) return normalizar(obj);
+export function cargar(ahora = new Date()): Datos | null {
+  for (const clave of [CLAVE, CLAVE_V1]) {
+    try {
+      const crudo = localStorage.getItem(clave);
+      if (!crudo) continue;
+      const datos = migrar(JSON.parse(crudo), ahora);
+      if (datos) return datos;
+    } catch (e) {
+      console.error(`No se pudieron leer los datos de ${clave}`, e);
     }
-  } catch (e) {
-    console.error('No se pudieron leer los datos guardados', e);
   }
-  return datosSemilla();
+  return null;
 }
 
 export function guardar(datos: Datos): boolean {
@@ -57,6 +26,15 @@ export function guardar(datos: Datos): boolean {
   } catch (e) {
     console.error('No se pudieron guardar los datos', e);
     return false;
+  }
+}
+
+export function borrarTodo(): void {
+  try {
+    localStorage.removeItem(CLAVE);
+    localStorage.removeItem(CLAVE_V1);
+  } catch (e) {
+    console.error('No se pudieron borrar los datos', e);
   }
 }
 

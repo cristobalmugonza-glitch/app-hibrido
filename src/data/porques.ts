@@ -14,30 +14,63 @@ const P = (p: PorQue) => p;
 export const PORQUES_LISTA: PorQue[] = [
   // Cómo está armada la app
   P({
-    id: 'secuencia', tema: 'estructura', titulo: 'Por qué este orden de sesiones', etiqueta: 'limitada',
+    id: 'bloques_libres', tema: 'estructura', titulo: 'Eliges tu bloque cada día',
     texto: [
-      'La app no usa días de la semana: sigue una cola de sesiones que avanza solo cuando completas o saltas una. Si pasan 5 días sin entrenar, retomas donde quedaste.',
-      'Piernas queda lejos de las carreras de impacto (Z2 dos sesiones después, calidad cuatro, fondo seis), para que el tobillo llegue recuperado al estímulo más exigente. Empuje y calistenia quedan a 4 sesiones, y tirón y calistenia a 2: si entrenas ~1 vez al día, cada músculo tiene 48–72 h entre estímulos.',
-      'Con el mismo volumen semanal, la frecuencia casi no cambia la hipertrofia. Entrenar cada músculo 2 veces por vuelta sirve para repartir las series sin sesiones eternas. El orden exacto es criterio práctico, no algo medido en un ensayo.',
+      'No hay una cola fija: cada día eliges qué bloque entrenar y la app lleva la cuenta de la semana. Para crecer manda el volumen semanal por músculo, no el día en que cae cada sesión: con el mismo volumen semanal, entrenar un músculo 1 o 2 veces por semana dio una hipertrofia similar.',
+      'La sugerencia del día elige entre lo que te queda pendiente y descarta lo que choca con tu recuperación (un músculo cargado hace menos de 48 h, o piernas pesadas justo antes de una carrera exigente). Ese orden es criterio práctico, no algo medido en ensayos.',
     ],
-    refs: ['schoenfeld2019frec', 'pelland2026', 'schoenfeld2016frec'],
+    refs: ['schoenfeld2019frec', 'pelland2026'],
+  }),
+  P({
+    id: 'recuperacion', tema: 'estructura', titulo: 'Recuperación entre sesiones', etiqueta: 'limitada',
+    texto: [
+      'La app avisa si un bloque carga músculos que entrenaste con 3 series o más hace menos de 48 h, o si juntas dos carreras exigentes con menos de 24 h entre ellas.',
+      'Esos umbrales son práctica común de entrenadores, no cifras probadas en ensayos. El aviso informa: si te sientes bien, puedes entrenar igual.',
+    ],
+    refs: [],
   }),
   P({
     id: 'sesion_doble', tema: 'estructura', titulo: 'Dos sesiones el mismo día',
     texto: [
-      'Puedes hacer dos sesiones seguidas de la cola el mismo día. En 43 estudios, combinar aeróbico y fuerza no perjudicó la hipertrofia ni la fuerza máxima, fuera en la misma sesión, el mismo día o días distintos.',
-      'Solo se atenuó la fuerza explosiva, y más cuando ambas sesiones quedaron a menos de 3 h. Tu objetivo no es potencia, así que no es una preocupación central.',
+      'Puedes hacer dos bloques el mismo día. En 43 estudios, combinar aeróbico y fuerza no perjudicó la hipertrofia ni la fuerza máxima, fuera en la misma sesión, el mismo día o días distintos.',
+      'Solo se atenuó la fuerza explosiva, y más cuando ambas sesiones quedaron a menos de 3 h.',
       'Si puedes, sepáralas al menos 3 h. Si quedan juntas, haz fuerza primero: en la misma sesión, ese orden mejoró la fuerza de piernas (~7 %) sin cambiar la hipertrofia.',
     ],
     refs: ['schumann2022', 'eddens2018'],
   }),
   P({
-    id: 'descarga', tema: 'estructura', titulo: 'Vuelta de descarga', etiqueta: 'limitada',
+    id: 'descarga', tema: 'estructura', titulo: 'Semana de descarga', etiqueta: 'limitada',
     texto: [
-      'De cada 4 vueltas, la cuarta es de descarga: mismo peso, mitad de series, sin fallo, y running al 60 % del volumen.',
-      'Los expertos coinciden en que una descarga reduce la fatiga y te prepara para el siguiente bloque. La receta exacta (mitad de series, 60 % de km) es práctica común, no una cifra probada en ensayos.',
+      'En la semana de descarga mantienes el peso, haces la mitad de las series sin llegar al fallo y corres el 60 % de los km. Es un período de menos estrés para bajar la fatiga y llegar mejor al siguiente bloque.',
+      'Atletas de fuerza y físico reportan descargar cada ~5–6 semanas, reduciendo series y repeticiones pero no la frecuencia. Parar por completo una semana no quitó músculo, aunque frenó algo la ganancia de fuerza; por eso acá se reduce el volumen en vez de parar.',
+      'La receta exacta (mitad de series, 60 % de los km) es práctica común, no una cifra probada en ensayos.',
     ],
-    refs: ['bell2023', 'moesgaard2022'],
+    refs: ['bell2023', 'rogerson2024', 'coleman2024'],
+  }),
+  P({
+    id: 'cuando_descargar', tema: 'estructura', titulo: 'Cuándo toca descarga', etiqueta: 'limitada',
+    texto: [
+      'Después de 3 semanas de carga seguidas, la cuarta es de descarga: bloques de 4 semanas, algo más frecuentes que las ~5–6 semanas que reportan atletas avanzados.',
+      'Se adelanta si 2 ejercicios o más llevan dos sesiones seguidas bajo su rango: estancarse es una de las razones más comunes para descargar.',
+      'Una semana en que hiciste menos de la mitad de las sesiones cuenta como descanso y reinicia el bloque: ya bajaste el estrés.',
+    ],
+    refs: ['rogerson2024', 'bell2023'],
+  }),
+  P({
+    id: 'adherencia', tema: 'estructura', titulo: 'Un plan que sí cumples', etiqueta: 'limitada',
+    texto: [
+      'Si dos semanas seguidas haces menos del 70 % de las sesiones planificadas, la app propone sacar el bloque que menos haces. Con el mismo volumen semanal la frecuencia casi no cambia la hipertrofia: conviene mover esas series a los días que sí entrenas.',
+      'Al sacar un bloque, la proyección siguiente te propone dónde reponer las series que falten. El umbral de 70 % es práctica común.',
+    ],
+    refs: ['schoenfeld2019frec', 'pelland2026'],
+  }),
+  P({
+    id: 'benchmarks', tema: 'estructura', titulo: 'Cada cuánto medir', etiqueta: 'limitada',
+    texto: [
+      'Medidas y foto cada 4 semanas; test de 8 km y dominadas con lastre cada 8. Son frecuencias prácticas: dan tiempo a que haya cambios reales y no ruido de un día.',
+      'Mide siempre en las mismas condiciones (hora, ayuno, calentamiento). La tendencia importa más que un número suelto.',
+    ],
+    refs: [],
   }),
 
   // Fuerza
@@ -86,9 +119,7 @@ export const PORQUES_LISTA: PorQue[] = [
   }),
   P({
     id: 'descanso_general', tema: 'fuerza', titulo: 'Descanso en aislamiento y calistenia',
-    texto: [
-      '60–90 s en aislamiento; 90 s–2 min en compuestos livianos y calistenia. Sobre 60 s hay un beneficio pequeño; sobre 90 s la hipertrofia casi no cambia.',
-    ],
+    texto: ['60–90 s en aislamiento; 90 s–2 min en compuestos livianos y calistenia. Sobre 60 s hay un beneficio pequeño; sobre 90 s la hipertrofia casi no cambia.'],
     refs: ['singer2024', 'grgic2017'],
   }),
   P({
@@ -108,22 +139,40 @@ export const PORQUES_LISTA: PorQue[] = [
     ],
     refs: ['schoenfeld2017vol', 'bazvalle2022', 'pelland2026', 'bickel2011'],
   }),
+  P({
+    id: 'progresion_volumen', tema: 'fuerza', titulo: 'Ajustar series semana a semana', etiqueta: 'limitada',
+    texto: [
+      'Si un músculo queda bajo el rango de su prioridad, la app propone sumar series de a poco (hasta 2 por semana); si queda sobre el rango, propone quitar. Más series dan más hipertrofia, pero con rendimientos decrecientes.',
+      'En semanas de descarga no se suman series. El tope de 2 series por semana es práctica común para subir el volumen sin disparar la fatiga.',
+    ],
+    refs: ['schoenfeld2017vol', 'pelland2026', 'bazvalle2022'],
+  }),
+
+  // Fuerza + running
+  P({
+    id: 'piernas_impacto', tema: 'concurrente', titulo: 'Piernas y running seguidos', etiqueta: 'limitada',
+    texto: [
+      'Correr fue el tipo de aeróbico que más interfirió con la fuerza y la hipertrofia de piernas, y la interferencia creció con la frecuencia y la duración. Bien dosificado, el efecto sobre el músculo completo fue pequeño o nulo.',
+      'Por eso la app avisa cuando una sesión pesada de piernas y una carrera exigente (calidad o fondo) quedan a menos de 24 h: llegas con las piernas cargadas. El umbral de 24 h es práctica común.',
+    ],
+    refs: ['wilson2012', 'schumann2022'],
+  }),
 
   // Tobillo
   P({
     id: 'tobillo_protocolo', tema: 'tobillo', titulo: 'Protocolo de tobillo obligatorio',
     texto: [
-      'Tu tobillo derecho se trata como una capacidad a construir, no como una zona a evitar. El entrenamiento de equilibrio redujo el riesgo de esguince, con más efecto en quienes ya habían tenido uno, y un programa de 8 semanas bajó 35 % las recurrencias.',
+      'El tobillo se trata como una capacidad a construir, no como una zona a evitar. El entrenamiento de equilibrio redujo el riesgo de esguince, con más efecto en quienes ya habían tenido uno, y un programa de 8 semanas bajó 35 % las recurrencias.',
       'La fuerza también cuenta: en tobillos inestables, protocolos de fuerza mejoraron la fuerza (incluida la eversión), el equilibrio y la función.',
-      'Los ensayos partieron después de esguinces recientes; el tuyo es antiguo, así que es una extrapolación razonable. Por eso piernas no se cierra sin sóleo, banda y equilibrio.',
+      'Los ensayos partieron después de esguinces recientes; con un esguince antiguo es una extrapolación razonable. Por eso la sesión que tiene el protocolo no se cierra sin esos ejercicios.',
     ],
     refs: ['mckeon2008', 'hupperets2009', 'doherty2017', 'hall2018'],
   }),
   P({
     id: 'tobillo_frecuencia', tema: 'tobillo', titulo: 'Equilibrio antes de cada carrera', etiqueta: 'limitada',
     texto: [
-      'Los programas que funcionaron se hacían 3 veces por semana (20–30 min por sesión). Solo una vez por vuelta, en piernas, se queda corto.',
-      'Por eso cada carrera parte con 2 × 30 s de equilibrio por lado: 2 minutos que suman 4 estímulos por vuelta. La dosis exacta es práctica común; la frecuencia sale de los ensayos.',
+      'Los programas que funcionaron se hacían 3 veces por semana (20–30 min por sesión). Solo una vez por semana, el día de piernas, se queda corto.',
+      'Por eso cada carrera parte con 2 × 30 s de equilibrio por lado: 2 minutos que suman estímulos durante la semana. La dosis exacta es práctica común; la frecuencia sale de los ensayos.',
     ],
     refs: ['hupperets2009', 'hall2018'],
   }),
@@ -143,22 +192,30 @@ export const PORQUES_LISTA: PorQue[] = [
     texto: [
       'Las zonas salen de tu FC máxima: Z1 60–65 %, Z2 65–75 %, Z3 75–82 %, Z4 82–89 % y Z5 89–100 %.',
       'Calcular zonas por porcentaje de la FC máxima es práctico, pero menos preciso que un test de laboratorio. Si el ritmo guía y la FC no calzan, manda la FC.',
-      'La mayor parte del running va en Z2: los atletas de resistencia exitosos hacen ~80 % de sus sesiones a baja intensidad. Eso viene de atletas de élite; aplicarlo a ti es extrapolación.',
+      'La mayor parte del running va en Z2: los atletas de resistencia exitosos hacen ~80 % de sus sesiones a baja intensidad. Eso viene de atletas de élite; aplicarlo a un corredor recreativo es extrapolación.',
     ],
     refs: ['seiler2010'],
   }),
   P({
+    id: 'fcmax_estimada', tema: 'running', titulo: 'FC máxima estimada',
+    texto: [
+      'Si no conoces tu FC máxima, la app usa 208 − 0,7 × edad, derivada de un metaanálisis de 351 estudios y validada en laboratorio. Funcionó igual en hombres y mujeres, activos o sedentarios.',
+      'Es un promedio: tu FC máxima real puede ser bastante distinta. Si la conoces por un test o una carrera exigente, cámbiala en Ajustes.',
+    ],
+    refs: ['tanaka2001'],
+  }),
+  P({
     id: 'ritmos_test', tema: 'running', titulo: 'Ritmos desde tu test de 8 km', etiqueta: 'limitada',
     texto: [
-      'Los ritmos salen de tu último test de 8 km a 145 lpm: Z2 al ritmo del test, fondo 10–20 s más lento, tempo 45–60 s más rápido, 1000 m 65–80 s y 800 m 75–90 s más rápidos.',
-      'Sin test, la app usa el ritmo semilla (Ajustes). Son ritmos guía derivados de práctica común.',
+      'Los ritmos salen de tu último test de 8 km en Z2 alta (4 lpm bajo el tope de tu Z2): Z2 al ritmo del test, fondo 10–20 s más lento, tempo 45–60 s más rápido, 1000 m 65–80 s y 800 m 75–90 s más rápidos.',
+      'Sin test, la app usa el ritmo cómodo de tu perfil. Son ritmos guía derivados de práctica común.',
     ],
     refs: [],
   }),
   P({
     id: 'calidad', tema: 'running', titulo: 'Sesión de calidad', etiqueta: 'limitada',
     texto: [
-      'La calidad rota sola en cada ciclo: fartlek, luego 800 m, luego 1000 m. Varías el estímulo sin subir el volumen al mismo tiempo.',
+      'La calidad rota sola en cada bloque de carga: fartlek, luego 800 m, luego 1000 m. Varías el estímulo sin subir el volumen al mismo tiempo.',
       'Tres palancas, nunca las tres a la vez: densidad aeróbica (la principal), calidad y volumen (último recurso).',
     ],
     refs: ['seiler2010'],
@@ -166,7 +223,7 @@ export const PORQUES_LISTA: PorQue[] = [
   P({
     id: 'fondo_progresion', tema: 'running', titulo: 'Fondo largo', etiqueta: 'discusion',
     texto: [
-      'El fondo sube 1 km cada 2 ciclos, con tope en 18 km. Es la palanca que menos se toca porque es la que más carga el tobillo.',
+      'El fondo sube 1 km cada 2 bloques (~8 semanas), hasta el tope de tu perfil. Es la palanca que menos se toca porque es la que más carga piernas y tobillos.',
       'La "regla del 10 %" no redujo lesiones en novatos, y los aumentos de más de 30 % mostraron una señal no concluyente de más lesiones por distancia. Subir poco y de a poco es la opción prudente.',
     ],
     refs: ['buist2008', 'nielsen2014'],
@@ -174,7 +231,7 @@ export const PORQUES_LISTA: PorQue[] = [
   P({
     id: 'tope_km', tema: 'running', titulo: 'Tope de km semanales', etiqueta: 'limitada',
     texto: [
-      'Sobre tu tope sube el impacto acumulado en el tobillo y la interferencia con la hipertrofia: la interferencia creció con la frecuencia y la duración del aeróbico, y fue más clara al correr que al pedalear.',
+      'Sobre tu tope sube el impacto acumulado y la interferencia con la hipertrofia: la interferencia creció con la frecuencia y la duración del aeróbico, y fue más clara al correr que al pedalear.',
       'El número es tu tope personal, no una cifra de un estudio. La alerta informa, no bloquea.',
     ],
     refs: ['wilson2012', 'lundberg2022', 'schumann2022'],
@@ -198,29 +255,39 @@ export const PORQUES_LISTA: PorQue[] = [
 
   // Nutrición
   P({
+    id: 'objetivo_kcal', tema: 'nutricion', titulo: 'Cómo se calculan tus calorías', etiqueta: 'limitada',
+    texto: [
+      'El gasto en reposo sale de la ecuación de Mifflin-St Jeor, la más confiable entre las de uso común, y se multiplica por un factor según tus sesiones por semana. Ese factor es la parte menos precisa: práctica común.',
+      'Para perder grasa se resta 20 % (máximo 500 kcal): en atletas, un recorte de ~19 % permitió bajar 0,7 % del peso por semana ganando masa magra, y déficits sobre 500 kcal/día frenaron la masa magra.',
+      'Para ganar músculo se suma 10 %, el extremo conservador del superávit recomendado (10–20 %), apuntando a subir 0,25–0,5 % del peso por semana.',
+      'Es un punto de partida: la calibración semanal con tus pesajes corrige el error de la estimación.',
+    ],
+    refs: ['mifflin1990', 'frankenfield2005', 'garthe2011', 'murphy2022', 'iraki2019'],
+  }),
+  P({
     id: 'proteina', tema: 'nutricion', titulo: 'Proteína',
     texto: [
-      'Para quien entrena se recomiendan 1,4–2,0 g/kg al día; en condiciones normales, sobre ~1,6 g/kg no se vio más ganancia de masa magra.',
-      'En déficit las necesidades suben: en atletas magros se estiman 2,3–3,1 g por kg de masa libre de grasa. Con una estimación de grasa, la app te muestra ese rango.',
+      'Para quien entrena se recomiendan 1,4–2,0 g/kg al día; sobre ~1,6 g/kg no se vio más ganancia de masa magra en condiciones normales. Para ganar músculo se recomiendan 1,6–2,2 g/kg.',
+      'En déficit las necesidades suben: en atletas magros se estiman 2,3–3,1 g por kg de masa libre de grasa. Si buscas perder grasa y registras cuello y cintura, la app te muestra ese rango.',
     ],
-    refs: ['jager2017', 'morton2018', 'helms2014prot'],
+    refs: ['jager2017', 'morton2018', 'helms2014prot', 'iraki2019'],
   }),
   P({
     id: 'grasa', tema: 'nutricion', titulo: 'Grasa y su piso', etiqueta: 'limitada',
     texto: [
-      'Se recomienda que 15–30 % de las calorías venga de grasa. Las dietas bajas en grasa bajaron la testosterona en hombres.',
+      'Se recomienda que 15–30 % de las calorías venga de grasa (0,5–1,5 g/kg al ganar músculo). Las dietas bajas en grasa bajaron la testosterona en hombres.',
       'El piso de 0,8 g/kg es práctica común: la evidencia respalda tener un piso, no ese número exacto.',
     ],
-    refs: ['helms2014prep', 'whittaker2021'],
+    refs: ['helms2014prep', 'whittaker2021', 'iraki2019'],
   }),
   P({
     id: 'calibracion', tema: 'nutricion', titulo: 'Calibración de calorías', etiqueta: 'limitada',
     texto: [
       'La app promedia tus pesajes de cada semana (idealmente 3, en ayunas), porque el peso diario varía por agua y comida.',
-      'La meta es bajar 0,35–0,5 kg por semana. En atletas, bajar ~0,7 % por semana permitió ganar masa magra y fuerza, y bajar el doble de rápido no; los déficits grandes y sostenidos frenan la masa magra.',
-      'Si en 3 semanas no bajas (menos de 0,1 kg por semana) propone −150 kcal; si bajas más de 0,6 kg por semana dos semanas seguidas, +150. Nunca propone menos de 1.900 kcal: si llegas ahí, sugiere una pausa. Los umbrales son práctica común.',
+      'Para perder grasa la meta es bajar 0,35–0,75 % del peso por semana: en atletas, bajar ~0,7 % por semana permitió ganar masa magra y fuerza, y bajar el doble de rápido no. Para ganar músculo, subir 0,25–0,5 % por semana.',
+      'Si en 3 semanas el peso no va hacia tu objetivo, propone ±150 kcal; si va demasiado rápido 2 semanas seguidas, lo contrario. Después de un ajuste espera 2 semanas y nunca propone bajar del piso de seguridad. Los umbrales son práctica común.',
     ],
-    refs: ['helms2014prep', 'garthe2011', 'murphy2022'],
+    refs: ['helms2014prep', 'garthe2011', 'iraki2019', 'murphy2022'],
   }),
   P({
     id: 'pausa', tema: 'nutricion', titulo: 'Pausa de mantención', etiqueta: 'limitada',
@@ -234,7 +301,7 @@ export const PORQUES_LISTA: PorQue[] = [
     id: 'ritmo_perdida', tema: 'nutricion', titulo: 'Ritmo de pérdida',
     texto: [
       'Perder 0,5–1 % del peso por semana ayuda a retener músculo, y en atletas el ritmo lento conservó más masa magra que el rápido.',
-      'Sobre 0,8 kg por semana sostenido, el riesgo de perder masa magra sube: conviene comer un poco más.',
+      'Sobre 1 % del peso por semana sostenido, el riesgo de perder masa magra sube: conviene comer un poco más.',
     ],
     refs: ['helms2014prep', 'garthe2011'],
   }),
@@ -275,9 +342,7 @@ export const PORQUES_LISTA: PorQue[] = [
   }),
   P({
     id: 'ace', tema: 'composicion', titulo: 'Categorías de referencia', etiqueta: 'limitada',
-    texto: [
-      'Las categorías (esencial, atletas, fitness, promedio, obesidad) vienen de una tabla del American Council on Exercise. Sirven para entender el número; no son un estudio revisado por pares.',
-    ],
+    texto: ['Las categorías (esencial, atletas, fitness, promedio, obesidad) vienen de una tabla del American Council on Exercise. Sirven para entender el número; no son un estudio revisado por pares.'],
     refs: [],
   }),
   P({

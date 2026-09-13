@@ -1,11 +1,20 @@
 import type { Datos, EntrenoHoy, Perfil, RegistroPeso } from '../tipos/modelo';
-import { diaLocal, enVentana } from './fechas';
+import { diaLocal, diasEntre, enVentana } from './fechas';
+import { fmt0, fmt1 } from './formato';
 
-export const PISO_KCAL = 1900;
 export const PISO_GRASA_G_KG = 0.8;
 export const PASO_KCAL = 150;
-// "Sin bajar en 3 semanas" = menos de 0,1 kg por semana en promedio.
-export const SIN_BAJAR_3_SEMANAS_KG = 0.3;
+export const ESPERA_AJUSTE_DIAS = 14;
+
+// Umbrales como fracción del peso, para que sirvan a cualquier persona.
+export const RITMO = {
+  perderMin: 0.0035, // por semana
+  perderMax: 0.0075,
+  perdidaRapida: 0.01,
+  ganarMin: 0.0025,
+  ganarMax: 0.005,
+  mantenerTres: 0.01, // cambio aceptable en 3 semanas
+};
 
 export function macros(perfil: Perfil) {
   const carbos = Math.max(0, Math.round((perfil.caloriasObjetivo - perfil.proteinaObjetivo * 4 - perfil.grasaObjetivo * 9) / 4));
@@ -13,7 +22,8 @@ export function macros(perfil: Perfil) {
 }
 
 export function pesoActual(datos: Datos): number {
-  return datos.pesos.at(-1)?.peso ?? datos.perfil.pesoInicial;
+  if (!datos.pesos.length) return datos.perfil.pesoInicial;
+  return datos.pesos.reduce((a, b) => (b.fecha > a.fecha ? b : a)).peso;
 }
 
 // Ventana i = días [7i, 7i+7) hacia atrás desde hoy. Semana 0 = últimos 7 días.
@@ -39,28 +49,54 @@ export function tasaSemanal(datos: Datos, ahora: Date): number | null {
 }
 
 export function perdidaRapida(datos: Datos, ahora: Date): boolean {
+  const limite = pesoActual(datos) * RITMO.perdidaRapida;
   const [a, b] = perdidas(datos.pesos, ahora, 2);
-  return a !== null && b !== null && a > 0.8 && b > 0.8;
+  return a !== null && b !== null && a > limite && b > limite;
+}
+
+export function metaSemanal(perfil: Perfil, peso: number): string {
+  if (perfil.objetivo === 'perder_grasa') return `Meta: bajar ${fmt1(peso * RITMO.perderMin)}–${fmt1(peso * RITMO.perderMax)} kg por semana.`;
+  if (perfil.objetivo === 'ganar_musculo') return `Meta: subir ${fmt1(peso * RITMO.ganarMin)}–${fmt1(peso * RITMO.ganarMax)} kg por semana.`;
+  return 'Meta: mantener tu peso estable.';
 }
 
 export type Propuesta = { tipo: 'bajar' | 'subir' | 'pausa'; deltaKcal: number; texto: string; porQue: string };
 
 export function propuestaKcal(datos: Datos, ahora: Date): Propuesta | null {
-  const kcal = datos.perfil.caloriasObjetivo;
+  // Un cambio de calorías tarda en verse en el peso: se espera 2 semanas antes de volver a proponer.
+  if (datos.ultimoAjusteKcal && diasEntre(datos.ultimoAjusteKcal, ahora) < ESPERA_AJUSTE_DIAS) return null;
+
+  const { perfil } = datos;
+  const kcal = perfil.caloriasObjetivo;
+  const peso = pesoActual(datos);
   const [a, b] = perdidas(datos.pesos, ahora, 2);
-  if (a !== null && b !== null && a > 0.6 && b > 0.6) {
-    return { tipo: 'subir', deltaKcal: PASO_KCAL, texto: `Bajaste más de 0,6 kg por semana dos semanas seguidas. Sube a ${kcal + PASO_KCAL} kcal para cuidar el músculo.`, porQue: 'calibracion' };
-  }
   const s = promediosSemanales(datos.pesos, ahora, 4);
-  const hoy = s[0].promedio;
-  const hace3 = s[3].promedio;
-  if (hoy !== null && hace3 !== null && hace3 - hoy < SIN_BAJAR_3_SEMANAS_KG) {
-    if (kcal - PASO_KCAL < PISO_KCAL) {
-      return { tipo: 'pausa', deltaKcal: 0, texto: `3 semanas sin bajar y ya estás cerca del piso de ${PISO_KCAL} kcal. Mejor 1–2 semanas en mantención antes de seguir.`, porQue: 'pausa' };
-    }
-    return { tipo: 'bajar', deltaKcal: -PASO_KCAL, texto: `3 semanas sin bajar. Baja a ${kcal - PASO_KCAL} kcal (el ajuste sale de los carbohidratos).`, porQue: 'calibracion' };
+  const cambio3 = s[0].promedio !== null && s[3].promedio !== null ? s[0].promedio - s[3].promedio : null; // positivo = subió
+  const dosSemanas = (f: (bajo: number) => boolean) => a !== null && b !== null && f(a) && f(b);
+
+  const subir = (motivo: string): Propuesta => ({ tipo: 'subir', deltaKcal: PASO_KCAL, texto: `${motivo} Sube a ${fmt0(kcal + PASO_KCAL)} kcal.`, porQue: 'calibracion' });
+  const bajar = (motivo: string): Propuesta =>
+    kcal - PASO_KCAL < perfil.pisoKcal
+      ? { tipo: 'pausa', deltaKcal: 0, texto: `${motivo} Ya estás cerca del piso de ${fmt0(perfil.pisoKcal)} kcal: mejor 1–2 semanas en mantención antes de seguir.`, porQue: 'pausa' }
+      : { tipo: 'bajar', deltaKcal: -PASO_KCAL, texto: `${motivo} Baja a ${fmt0(kcal - PASO_KCAL)} kcal (el ajuste sale de los carbohidratos).`, porQue: 'calibracion' };
+
+  if (perfil.objetivo === 'perder_grasa') {
+    if (dosSemanas((x) => x > peso * RITMO.perderMax)) return subir(`Bajaste más de ${fmt1(peso * RITMO.perderMax)} kg por semana dos semanas seguidas: cuida el músculo.`);
+    if (cambio3 !== null && -cambio3 < peso * RITMO.perderMin) return bajar('3 semanas sin bajar.');
+    return null;
   }
+  if (perfil.objetivo === 'ganar_musculo') {
+    if (dosSemanas((x) => -x > peso * RITMO.ganarMax)) return bajar(`Subiste más de ${fmt1(peso * RITMO.ganarMax)} kg por semana dos semanas seguidas: parte de eso es grasa.`);
+    if (cambio3 !== null && cambio3 < peso * RITMO.ganarMin) return subir('3 semanas sin subir de peso.');
+    return null;
+  }
+  if (cambio3 !== null && cambio3 > peso * RITMO.mantenerTres) return bajar('3 semanas subiendo de peso.');
+  if (cambio3 !== null && cambio3 < -peso * RITMO.mantenerTres) return subir('3 semanas bajando de peso.');
   return null;
+}
+
+export function aplicarKcal(datos: Datos, delta: number, ahora = new Date()): Datos {
+  return { ...datos, perfil: { ...datos.perfil, caloriasObjetivo: datos.perfil.caloriasObjetivo + delta }, ultimoAjusteKcal: ahora.toISOString() };
 }
 
 export function pisoGrasa(peso: number): number {

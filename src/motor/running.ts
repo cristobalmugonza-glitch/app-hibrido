@@ -1,11 +1,10 @@
 import type { Datos, Perfil, SesionRunning, TipoRunning } from '../tipos/modelo';
-import type { Contexto } from './secuencia';
 import { enVentana } from './fechas';
 import { rangoRitmo, ritmo } from './formato';
 
 export const ritmoSesion = (s: SesionRunning) => (s.duracionMin * 60) / s.distanciaKm;
 
-// Zonas por % de FC máxima. Con FCmáx 199 reproducen las zonas del usuario (119/129/149/163/177).
+// Zonas por % de FC máxima. Con FCmáx 199 dan 119/129/149/163/177.
 const LIMITES = [0.6, 0.65, 0.75, 0.82, 0.89, 1];
 export type Zona = { nombre: string; desde: number; hasta: number };
 export function zonas(fcMax: number): Zona[] {
@@ -17,22 +16,32 @@ export function zonaDe(fc: number, fcMax: number): string {
   return fc >= fcMax ? 'Z5' : 'bajo Z1';
 }
 
+// El test de 8 km se corre en Z2 alta: 4 lpm bajo el tope de la Z2.
+export const fcTest = (fcMax: number) => zonas(fcMax)[1].hasta - 4;
+
 export function ritmoBase(datos: Datos): { segKm: number; fuente: 'test' | 'semilla' } {
   const test = datos.sesionesRunning.filter((s) => s.tipo === 'test' && s.distanciaKm > 0).at(-1);
   return test ? { segKm: ritmoSesion(test), fuente: 'test' } : { segKm: datos.perfil.ritmoSemillaSegKm, fuente: 'semilla' };
 }
 
 export type TipoCalidad = 'fartlek' | '800' | '1000';
-export function tipoCalidad(ciclo: number): TipoCalidad {
-  return (['fartlek', '800', '1000'] as const)[(ciclo - 1) % 3];
+export function tipoCalidad(mesociclo: number): TipoCalidad {
+  return (['fartlek', '800', '1000'] as const)[(Math.max(1, mesociclo) - 1) % 3];
 }
-export function nombreCalidad(ciclo: number): string {
-  return { fartlek: 'Fartlek', '800': '800 m', '1000': '1000 m' }[tipoCalidad(ciclo)];
+export function nombreCalidad(mesociclo: number): string {
+  return { fartlek: 'Fartlek', '800': '800 m', '1000': '1000 m' }[tipoCalidad(mesociclo)];
 }
 
-// +1 km cada 2 ciclos (≈ 8 semanas), con tope.
-export function fondoKm(perfil: Perfil, ciclo: number): number {
-  return Math.min(perfil.topeFondoKm, perfil.fondoKmInicial + Math.floor((ciclo - 1) / 2));
+// +1 km cada 2 bloques (≈ 8 semanas), con tope.
+export function fondoKm(perfil: Perfil, mesociclo: number): number {
+  return Math.min(perfil.topeFondoKm, perfil.fondoKmInicial + Math.floor((Math.max(1, mesociclo) - 1) / 2));
+}
+
+export const tieneProtocoloTobillo = (datos: Datos) => datos.rutina.plantillas.some((p) => p.ejercicios.some((e) => e.esProtocoloTobillo));
+
+// Con poca base de km la calidad se acorta (práctica común): 22 km de Z2 + fondo = sesión completa.
+export function escalaCalidad(perfil: Perfil): number {
+  return Math.min(1, Math.max(0.6, (perfil.z2Km + perfil.fondoKmInicial) / 22));
 }
 
 export type AjustesRunning = { factor: number; calidadAZ2: boolean };
@@ -46,14 +55,14 @@ export type Prescripcion = {
 
 const aMedio = (x: number) => Math.round(x * 2) / 2;
 
-export function prescribir(tipo: TipoRunning, datos: Datos, ctx: Contexto, aj: AjustesRunning): Prescripcion {
+export function prescribir(tipo: TipoRunning, datos: Datos, mesociclo: number, aj: AjustesRunning): Prescripcion {
   const { perfil } = datos;
   const base = ritmoBase(datos).segKm;
   const z = zonas(perfil.fcMax);
-  const equilibrio = { texto: 'Antes: equilibrio unipodal 2 × 30 s por lado', porQue: 'tobillo_frecuencia' };
+  const tobillo = tieneProtocoloTobillo(datos) ? [{ texto: 'Antes: equilibrio unipodal 2 × 30 s por lado', porQue: 'tobillo_frecuencia' }] : [];
 
   if (tipo === 'z2' || (tipo === 'calidad' && aj.calidadAZ2)) {
-    const lineas = [{ texto: `FC ${z[1].desde}–${z[1].hasta} lpm · guía ~${ritmo(base)}/km`, porQue: 'zonas_fc' }, equilibrio];
+    const lineas = [{ texto: `FC ${z[1].desde}–${z[1].hasta} lpm · guía ~${ritmo(base)}/km`, porQue: 'zonas_fc' }, ...tobillo];
     if (tipo === 'calidad') lineas.unshift({ texto: 'Tobillo: esta calidad pasa a Z2', porQue: 'tobillo_alerta' });
     return { tipo, etiqueta: 'Z2', km: aMedio(perfil.z2Km * aj.factor), lineas };
   }
@@ -62,23 +71,23 @@ export function prescribir(tipo: TipoRunning, datos: Datos, ctx: Contexto, aj: A
     return {
       tipo,
       etiqueta: 'Fondo',
-      km: aMedio(fondoKm(perfil, ctx.ciclo) * aj.factor),
-      lineas: [{ texto: `Z2 a ${rangoRitmo(base + 10, base + 20)}/km; los últimos 2–3 km pueden subir a Z3 (${z[2].desde}–${z[2].hasta} lpm)`, porQue: 'fondo_progresion' }, equilibrio],
+      km: aMedio(fondoKm(perfil, mesociclo) * aj.factor),
+      lineas: [{ texto: `Z2 a ${rangoRitmo(base + 10, base + 20)}/km; los últimos 2–3 km pueden subir a Z3 (${z[2].desde}–${z[2].hasta} lpm)`, porQue: 'fondo_progresion' }, ...tobillo],
     };
   }
 
-  const cual = tipoCalidad(ctx.ciclo);
+  const cual = tipoCalidad(mesociclo);
   const def = {
     fartlek: { n: 6, kmPorRep: 0.75, texto: (n: number) => `${n} × 2 min a ${rangoRitmo(base - 60, base - 45)}/km, 2 min suave entre medio` },
     '800': { n: 5, kmPorRep: 1.15, texto: (n: number) => `${n} × 800 m a ${rangoRitmo(base - 90, base - 75)}/km, 2 min trotando entre series` },
     '1000': { n: 4, kmPorRep: 1.4, texto: (n: number) => `${n} × 1000 m a ${rangoRitmo(base - 80, base - 65)}/km, 2–3 min trotando entre series` },
   }[cual];
-  const n = Math.max(2, Math.round(def.n * aj.factor));
+  const n = Math.max(2, Math.round(def.n * aj.factor * escalaCalidad(perfil)));
   return {
     tipo,
-    etiqueta: nombreCalidad(ctx.ciclo),
+    etiqueta: nombreCalidad(mesociclo),
     km: aMedio(3.5 + n * def.kmPorRep),
-    lineas: [{ texto: def.texto(n), porQue: 'calidad' }, { texto: 'Calentamiento 2 km en Z1–Z2 y 1,5 km suave al final', porQue: 'ritmos_test' }, equilibrio],
+    lineas: [{ texto: def.texto(n), porQue: 'calidad' }, { texto: 'Calentamiento 2 km en Z1–Z2 y 1,5 km suave al final', porQue: 'ritmos_test' }, ...tobillo],
   };
 }
 

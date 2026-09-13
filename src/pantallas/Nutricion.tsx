@@ -4,7 +4,7 @@ import { Boton, Encabezado, Segmentado } from '../componentes/ui';
 import { PorQue } from '../componentes/PorQue';
 import { diaLocal } from '../motor/fechas';
 import { fmt0, fmt1 } from '../motor/formato';
-import { guiaAyuno, macros, pesoActual, pisoGrasa, promediosSemanales, propuestaKcal, proteinaPorComida, rangoProteinaDeficit } from '../motor/nutricion';
+import { aplicarKcal, guiaAyuno, macros, metaSemanal, pesoActual, pisoGrasa, promediosSemanales, propuestaKcal, proteinaPorComida, rangoProteinaDeficit } from '../motor/nutricion';
 
 const NOMBRE_SEMANA = ['Últimos 7 días', 'Semana anterior', 'Hace 2 semanas', 'Hace 3 semanas'];
 
@@ -14,7 +14,8 @@ export function Nutricion() {
   const hoy = diaLocal(ahora);
   const m = macros(datos.perfil);
   const peso = pesoActual(datos);
-  const rango = rangoProteinaDeficit(datos);
+  const enDeficit = datos.perfil.objetivo === 'perder_grasa';
+  const rango = enDeficit ? rangoProteinaDeficit(datos) : null;
   const porComida = proteinaPorComida(m.proteina, peso);
   const semanas = promediosSemanales(datos.pesos, ahora, 4);
   const propuesta = propuestaKcal(datos, ahora);
@@ -28,6 +29,8 @@ export function Nutricion() {
       return { ...d, entrenoHoy: { ...base, ...cambio } };
     });
 
+  const extraProteina = enDeficit ? rango ? <>Con tu última estimación de grasa, el rango en déficit es {rango[0]}–{rango[1]} g/día.</> : <>Registra cuello y cintura para calcular tu rango en déficit.</> : undefined;
+
   return (
     <div>
       <Encabezado>Nutrición</Encabezado>
@@ -35,13 +38,13 @@ export function Nutricion() {
       <section className="border-b border-linea py-5">
         <div className="flex items-center justify-between">
           <h2 className="text-sm text-texto2">Objetivo diario</h2>
-          <PorQue id="calibracion" />
+          <PorQue id="objetivo_kcal" />
         </div>
         <p className="num mt-1 text-[64px] leading-none">
           {fmt0(m.kcal)} <span className="text-2xl text-texto2">kcal</span>
         </p>
         <div className="mt-5 grid grid-cols-3 gap-3">
-          <Macro nombre="Proteína" gramos={m.proteina} porQue="proteina" extra={rango ? <>Con tu última estimación de grasa, el rango en déficit es {rango[0]}–{rango[1]} g/día.</> : <>Registra cuello y cintura para calcular tu rango en déficit.</>} sub={`${fmt1(m.proteina / peso)} g/kg`} />
+          <Macro nombre="Proteína" gramos={m.proteina} porQue="proteina" extra={extraProteina} sub={`${fmt1(m.proteina / peso)} g/kg`} />
           <Macro nombre="Grasa" gramos={m.grasa} porQue="grasa" sub={bajoPisoGrasa ? `bajo el piso (${pisoGrasa(peso)} g)` : `${fmt1(m.grasa / peso)} g/kg`} alerta={bajoPisoGrasa} />
           <Macro nombre="Carbos" gramos={m.carbos} sub="el resto" />
         </div>
@@ -87,7 +90,10 @@ export function Nutricion() {
       </section>
 
       <section className="py-5">
-        <h2 className="text-sm text-texto2">Calibración</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm text-texto2">Calibración</h2>
+          <PorQue id="calibracion" />
+        </div>
         <ul className="mt-2 divide-y divide-linea">
           {semanas.map((s) => (
             <li key={s.semana} className="flex justify-between py-2 text-[15px]">
@@ -103,14 +109,14 @@ export function Nutricion() {
               <PorQue id={propuesta.porQue} />
             </div>
             {propuesta.deltaKcal !== 0 && (
-              <Boton className="mt-3" variante="secundario" onClick={() => actualizar((d) => ({ ...d, perfil: { ...d.perfil, caloriasObjetivo: d.perfil.caloriasObjetivo + propuesta.deltaKcal } }))}>
+              <Boton className="mt-3" variante="secundario" onClick={() => actualizar((d) => aplicarKcal(d, propuesta.deltaKcal, new Date()))}>
                 Aplicar {propuesta.deltaKcal > 0 ? '+' : '−'}
                 {Math.abs(propuesta.deltaKcal)} kcal
               </Boton>
             )}
           </div>
         ) : (
-          <p className="mt-3 text-sm text-texto2">Meta: bajar 0,35–0,5 kg por semana. Con 2+ pesajes por semana la app calibra sola.</p>
+          <p className="mt-3 text-sm text-texto2">{metaSemanal(datos.perfil, peso)} Con 2 o más pesajes por semana la app calibra sola.</p>
         )}
       </section>
     </div>

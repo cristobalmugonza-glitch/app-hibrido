@@ -55,11 +55,14 @@ export const NOMBRE_MUSCULO: Record<Musculo, string> = {
   cuadriceps: 'Cuádriceps',
   isquios_gluteos: 'Isquios y glúteos',
   gemelos: 'Gemelos',
+  abdomen: 'Abdomen',
 };
 
 export const MUSCULOS = Object.keys(NOMBRE_MUSCULO) as Musculo[];
 
-// Series por vuelta (≈ semana si haces ~1 sesión al día), contando secundarios como 0,5.
+export const TREN_INFERIOR: Musculo[] = ['cuadriceps', 'isquios_gluteos'];
+
+// Series por semana, contando secundarios como 0,5.
 export const OBJETIVO_SERIES: Record<Prioridad, [number, number]> = {
   alta: [12, 20],
   media: [8, 14],
@@ -70,4 +73,18 @@ export const NOMBRE_PRIORIDAD: Record<Prioridad, string> = {
   alta: 'Alta',
   media: 'Media',
   mantencion: 'Mantención',
+};
+
+// Prioridades para una rutina nueva: los grandes grupos en media; lo que ya recibe trabajo indirecto, en mantención.
+export const PRIORIDADES_BASE: Record<Musculo, Prioridad> = {
+  pecho: 'media',
+  espalda: 'media',
+  hombro_lateral: 'media',
+  hombro_posterior: 'mantencion',
+  biceps: 'media',
+  triceps: 'media',
+  cuadriceps: 'media',
+  isquios_gluteos: 'media',
+  gemelos: 'mantencion',
+  abdomen: 'mantencion',
 };

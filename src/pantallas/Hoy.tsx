@@ -1,141 +1,221 @@
 import { useState } from 'react';
-import type { Tab } from '../App';
-import type { Datos, EjercicioDef, PasoSecuencia } from '../tipos/modelo';
+import type { Datos, EjercicioDef, TipoRunning } from '../tipos/modelo';
 import { useDatos } from '../almacen/contexto';
 import { Aviso, Boton, Hoja, Nota } from '../componentes/ui';
 import { PorQue } from '../componentes/PorQue';
 import { FormRunning } from './FormRunning';
+import { RegistrarHoja } from './Registrar';
 import { alertas, ajustesRunning } from '../motor/alertas';
 import { pendientes } from '../motor/benchmarks';
-import { fmt0, fmt1, fmt2 } from '../motor/formato';
+import { fmt0, fmt1, fmt2, plural } from '../motor/formato';
+import { contextoSemana, SEMANAS_DE_CARGA, sesionesPlanificadas, totalSesiones, type ContextoSemana } from '../motor/planificacion';
 import { historialDe, sugerir, type Sugerencia } from '../motor/progresion';
 import { prescribir, type Prescripcion } from '../motor/running';
-import { completarPaso, contexto, nombrePaso, pasoActual, proximos, ultimaSesionHoy, type Contexto } from '../motor/secuencia';
+import { inicioSemana, rangoSemana } from '../motor/semanas';
 import { iniciarGym } from '../motor/sesiones';
+import { estadoBloques, sesionDeHoy, sugerirBloque, type EstadoBloque, type SesionDeHoy } from '../motor/sugerencia';
 
-export function Hoy({ onIr, onAbrirRegistro }: { onIr: (t: Tab) => void; onAbrirRegistro: () => void }) {
+export function Hoy({ onAbrirRegistro }: { onAbrirRegistro: () => void }) {
   const { datos, actualizar } = useDatos();
-  const [confirmarSalto, setConfirmarSalto] = useState(false);
-  const [formRunning, setFormRunning] = useState(false);
+  const [detalle, setDetalle] = useState<string | null>(null);
+  const [registrar, setRegistrar] = useState(false);
+  const [verOtros, setVerOtros] = useState(false);
+  const [carrera, setCarrera] = useState<TipoRunning | null>(null);
+
   const ahora = new Date();
-  const ctx = contexto(datos.cola);
-  const paso = pasoActual(datos.rutina, datos.cola);
-
-  if (!paso) {
-    return <p className="text-texto2">La secuencia está vacía. Agrega sesiones en Más › Ajustes › Rutina.</p>;
-  }
-
-  const nombre = nombrePaso(paso, datos.rutina);
-  const despues = proximos(datos.rutina, datos.cola, 3).map((p) => nombrePaso(p, datos.rutina));
+  const semana = contextoSemana(datos, inicioSemana(ahora));
+  const estados = estadoBloques(datos, ahora);
+  const sugerencia = sugerirBloque(estados);
+  const hoy = sesionDeHoy(datos, ahora);
   const avisos = alertas(datos, ahora);
-  const pend = pendientes(datos, ctx);
-  const previa = ultimaSesionHoy(datos, ahora);
-  const prescripcion = paso.clase === 'running' ? prescribir(paso.tipo, datos, ctx, ajustesRunning(datos, ahora, ctx)) : null;
-  const plantilla = paso.clase === 'gym' ? datos.rutina.plantillas.find((p) => p.id === paso.plantillaId) : undefined;
+  const pend = pendientes(datos, ahora);
   const enCurso = datos.borradorGym;
+  const planificados = estados.filter((e) => e.veces > 0);
+  const otros = estados.filter((e) => e.veces === 0);
+  const abierto = estados.find((e) => e.key === detalle) ?? null;
+  const sugerido = sugerencia.tipo === 'bloque' ? sugerencia.bloque : null;
 
-  const principal = () => {
-    if (enCurso) return onAbrirRegistro();
-    if (paso.clase === 'gym') {
-      actualizar((d) => iniciarGym(d, paso.plantillaId, paso.id));
+  const empezar = (e: EstadoBloque) => {
+    const ref = e.ref;
+    setDetalle(null);
+    if (ref.clase === 'gym') {
+      actualizar((d) => iniciarGym(d, ref.plantillaId, semana.descarga));
       onAbrirRegistro();
-    } else if (paso.clase === 'running') setFormRunning(true);
-    else actualizar((d) => completarPaso(d, 'hecha'));
+    } else setCarrera(ref.tipo);
   };
-  const textoPrincipal = enCurso ? `Continuar ${enCurso.sesion.nombre}` : paso.clase === 'gym' ? `Empezar ${nombre}` : paso.clase === 'running' ? 'Registrar carrera' : 'Marcar descanso';
+
+  // Gym empieza directo; una carrera primero muestra la prescripción.
+  const cta = enCurso
+    ? { texto: `Continuar ${enCurso.sesion.nombre}`, accion: onAbrirRegistro }
+    : sugerido
+      ? sugerido.ref.clase === 'gym'
+        ? { texto: `Empezar ${sugerido.nombre}`, accion: () => empezar(sugerido) }
+        : { texto: `Ver ${sugerido.nombre}`, accion: () => setDetalle(sugerido.key) }
+      : null;
 
   return (
-    <div className="pb-36">
-      <p className="text-sm text-texto2">
-        Ciclo {ctx.ciclo} · Vuelta {ctx.vuelta} de 4
-      </p>
-      {ctx.descarga && (
-        <div className="mt-3 flex items-start gap-3 rounded-xl bg-acento px-4 py-3 text-fondo">
+    <div className={cta ? 'pb-24' : ''}>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-texto2">
+          Semana {rangoSemana(semana.inicio)}
+          {semana.descarga ? '' : ` · carga ${semana.semanaDeCarga} de ${SEMANAS_DE_CARGA}`}
+        </p>
+        <button type="button" onClick={() => setRegistrar(true)} className="-mr-2 h-11 shrink-0 px-2 font-medium text-acento">
+          Registrar
+        </button>
+      </div>
+
+      {semana.descarga && (
+        <div className="mt-2 flex items-start gap-3 rounded-xl bg-acento px-4 py-3 text-fondo">
           <div className="flex-1">
-            <p className="font-semibold">Vuelta 4 · Descarga</p>
+            <p className="font-semibold">Semana de descarga</p>
             <p className="text-[15px]">Mitad de series, sin fallo, 60 % de los km.</p>
           </div>
           <PorQue id="descarga" tono="invertido" />
         </div>
       )}
 
-      <p className="mt-6 text-texto2">Tu próxima sesión es</p>
+      <p className="mt-5 text-texto2">{hoy ? `Ya hiciste ${hoy.nombre} hoy.${sugerido ? ' Si quieres otra sesión:' : ''}` : sugerido ? 'Hoy te sugiero' : 'Hoy'}</p>
       <div className="mt-1 flex items-start gap-3">
-        <h1 className="num flex-1 text-[48px] leading-[1.05]">{nombre}</h1>
-        <PorQue id="secuencia" className="mt-3" />
+        <h1 className="num flex-1 text-[48px] leading-[1.05]">{sugerido ? sugerido.nombre : sugerencia.tipo === 'descanso' ? 'Descanso' : 'Semana completa'}</h1>
+        <PorQue id={sugerencia.tipo === 'descanso' ? 'recuperacion' : 'bloques_libres'} className="mt-3" />
       </div>
-      <p className="mt-2 text-texto2">{resumen(paso, datos, ctx, prescripcion)}</p>
-      {despues.length > 0 && <p className="mt-1 text-sm text-texto2">Después: {despues.join(', ')}</p>}
+      <p className="mt-2 text-texto2">{sugerencia.tipo === 'completa' ? 'Descansa o repite un bloque si te sobra energía.' : sugerencia.motivo}</p>
 
-      {previa && paso.clase !== 'libre' && <Nota porQue="sesion_doble">{notaSesionDoble(datos, previa, paso)}</Nota>}
       {avisos.map((a) => (
         <Aviso key={a.id} texto={a.texto} porQue={a.porQue} />
       ))}
       {pend.length > 0 && (
-        <button type="button" onClick={() => onIr('registrar')} className="mt-4 block text-left text-sm text-texto2 underline decoration-linea underline-offset-4">
-          Pendiente este ciclo: {pend.join(', ')}
+        <button type="button" onClick={() => setRegistrar(true)} className="mt-4 block text-left text-sm text-texto2 underline decoration-linea underline-offset-4">
+          Pendiente: {pend.join(', ')}
         </button>
       )}
 
-      <div className="mt-6">
-        {plantilla && <ListaEjercicios ejercicios={plantilla.ejercicios} datos={datos} descarga={ctx.descarga} />}
-        {prescripcion && <BloqueRunning p={prescripcion} />}
-        {paso.clase === 'libre' && <p className="text-[15px] text-texto2">Descanso o movilidad suave. Márcalo cuando pase el día.</p>}
-      </div>
+      <section className="mt-6">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="text-sm text-texto2">Tus bloques</h2>
+          <span className="text-sm text-texto2">
+            {totalSesiones(datos, semana.inicio)} de {sesionesPlanificadas(datos)} esta semana
+          </span>
+        </div>
+        {planificados.length ? (
+          <ul className="mt-1 divide-y divide-linea border-y border-linea">
+            {planificados.map((e) => (
+              <FilaBloque key={e.key} e={e} sub={resumenBloque(e, datos, semana, ahora)} onClick={() => setDetalle(e.key)} />
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-[15px] text-texto2">Tu plan semanal está vacío. Agrega bloques en Más › Ajustes › Rutina.</p>
+        )}
+        {otros.length > 0 && (
+          <>
+            <button type="button" onClick={() => setVerOtros(!verOtros)} className="mt-1 h-11 text-sm text-texto2">
+              {verOtros ? 'Ocultar otros bloques' : `Otros bloques (${otros.length})`}
+            </button>
+            {verOtros && (
+              <ul className="divide-y divide-linea border-y border-linea">
+                {otros.map((e) => (
+                  <FilaBloque key={e.key} e={e} sub={resumenBloque(e, datos, semana, ahora)} onClick={() => setDetalle(e.key)} />
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </section>
 
-      <div className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-30 border-t border-linea bg-fondo">
-        <div className="mx-auto max-w-md px-5 pt-3">
-          <Boton onClick={principal}>{textoPrincipal}</Boton>
-          <div className="flex justify-center">
-            <Boton variante="texto" disabled={!!enCurso} onClick={() => setConfirmarSalto(true)}>
-              Saltar sesión
-            </Boton>
+      {cta && (
+        <div className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-30 border-t border-linea bg-fondo">
+          <div className="mx-auto max-w-md px-5 py-3">
+            <Boton onClick={cta.accion}>{cta.texto}</Boton>
           </div>
         </div>
-      </div>
+      )}
 
-      <Hoja abierta={confirmarSalto} onCerrar={() => setConfirmarSalto(false)} titulo={`¿Saltar ${nombre}?`}>
-        <p className="text-[15px] text-texto2">La cola avanza a {despues[0] ?? nombre}. Queda registrada como saltada; el ciclo no se rompe.</p>
-        <div className="mt-5 space-y-2">
-          <Boton
-            variante="secundario"
-            onClick={() => {
-              actualizar((d) => completarPaso(d, 'saltada'));
-              setConfirmarSalto(false);
-            }}
-          >
-            Saltar {nombre}
-          </Boton>
-        </div>
+      <Hoja abierta={!!abierto} onCerrar={() => setDetalle(null)} titulo={abierto?.nombre ?? ''}>
+        {abierto && <DetalleBloque e={abierto} datos={datos} semana={semana} hoy={hoy} ahora={ahora} ocupado={!!enCurso} onEmpezar={() => empezar(abierto)} />}
       </Hoja>
 
-      {formRunning && paso.clase === 'running' && <FormRunning tipo={paso.tipo} pasoId={paso.id} onCerrar={() => setFormRunning(false)} />}
+      <RegistrarHoja abierta={registrar} onCerrar={() => setRegistrar(false)} />
+      {carrera && <FormRunning tipo={carrera} onCerrar={() => setCarrera(null)} />}
     </div>
   );
 }
 
+function FilaBloque({ e, sub, onClick }: { e: EstadoBloque; sub: string; onClick: () => void }) {
+  const completo = e.veces > 0 && e.hechas >= e.veces;
+  return (
+    <li>
+      <button type="button" onClick={onClick} className="flex w-full items-center justify-between gap-3 py-3 text-left">
+        <span className="min-w-0">
+          <span className="block text-[17px]">{e.nombre}</span>
+          <span className="block truncate text-sm text-texto2">
+            {sub}
+            {e.avisos.length ? ' · recuperando' : ''}
+          </span>
+        </span>
+        <span className={`num shrink-0 text-xl ${completo ? 'text-acento' : 'text-texto2'}`}>
+          {completo ? '✓ ' : ''}
+          {e.veces > 0 ? `${e.hechas}/${e.veces}` : e.hechas || ''}
+        </span>
+      </button>
+    </li>
+  );
+}
+
+function prescripcionDe(e: EstadoBloque, datos: Datos, semana: ContextoSemana, ahora: Date): Prescripcion | null {
+  return e.ref.clase === 'running' ? prescribir(e.ref.tipo, datos, semana.mesociclo, ajustesRunning(datos, ahora, semana.descarga)) : null;
+}
+
+function resumenBloque(e: EstadoBloque, datos: Datos, semana: ContextoSemana, ahora: Date): string {
+  const ref = e.ref;
+  if (ref.clase === 'gym') {
+    const p = datos.rutina.plantillas.find((x) => x.id === ref.plantillaId);
+    if (!p) return '';
+    const series = p.ejercicios.reduce((a, x) => a + (semana.descarga ? Math.ceil(x.series / 2) : x.series), 0);
+    return `${plural(p.ejercicios.length, 'ejercicio')} · ${plural(series, 'serie')}`;
+  }
+  // El nombre del bloque ya dice Z2 o fondo; solo la calidad agrega el tipo de sesión.
+  const pr = prescripcionDe(e, datos, semana, ahora)!;
+  return ref.tipo === 'calidad' ? `${pr.etiqueta} · ${fmt1(pr.km)} km` : `${fmt1(pr.km)} km`;
+}
+
 // El consejo de orden solo aplica cuando se juntan fuerza y running el mismo día.
-function notaSesionDoble(datos: Datos, previa: { pasoId: string; horas: number }, paso: PasoSecuencia): string {
-  const anterior = datos.rutina.secuencia.find((p) => p.id === previa.pasoId);
-  const nombreAnterior = anterior ? nombrePaso(anterior, datos.rutina) : 'una sesión';
-  const hace = previa.horas < 1 ? 'hace menos de 1 h' : `hace ${fmt0(previa.horas)} h`;
-  const base = `Ya hiciste ${nombreAnterior} hoy, ${hace}. Si puedes, separa al menos 3 h`;
-  if (anterior?.clase === 'gym' && paso.clase === 'running') return `${base}; si quedan juntas, este orden (fuerza y después running) es el recomendado.`;
-  if (anterior?.clase === 'running' && paso.clase === 'gym') return `${base}: con poca separación lo que más se resiente es la potencia, no la hipertrofia.`;
+function notaSesionDoble(hoy: SesionDeHoy, e: EstadoBloque): string {
+  const hace = hoy.horas < 1 ? 'hace menos de 1 h' : `hace ${fmt0(hoy.horas)} h`;
+  const base = `Ya hiciste ${hoy.nombre} hoy, ${hace}. Si puedes, separa al menos 3 h`;
+  if (hoy.clase === 'gym' && e.ref.clase === 'running') return `${base}; si quedan juntas, este orden (fuerza y después running) es el recomendado.`;
+  if (hoy.clase === 'running' && e.ref.clase === 'gym') return `${base}: con poca separación lo que más se resiente es la potencia, no la hipertrofia.`;
   return `${base}.`;
 }
 
-function resumen(paso: PasoSecuencia, datos: Datos, ctx: Contexto, p: Prescripcion | null): string {
-  if (paso.clase === 'gym') {
-    const pl = datos.rutina.plantillas.find((x) => x.id === paso.plantillaId);
-    if (!pl) return '';
-    const series = pl.ejercicios.reduce((a, e) => a + (ctx.descarga ? Math.ceil(e.series / 2) : e.series), 0);
-    const tobillo = pl.ejercicios.filter((e) => e.esProtocoloTobillo).length;
-    return `${pl.ejercicios.length} ejercicios · ${series} series${tobillo ? ` · ${tobillo} de tobillo` : ''}`;
-  }
-  // Los km ya aparecen grandes justo abajo; acá solo el tipo de sesión.
-  if (paso.clase === 'running' && p) return p.etiqueta === 'Z2' ? 'Rodaje suave en Z2' : p.etiqueta === 'Fondo' ? 'Fondo largo en Z2' : `Calidad del ciclo: ${p.etiqueta}`;
-  return 'Día sin entrenamiento';
+function DetalleBloque({ e, datos, semana, hoy, ahora, ocupado, onEmpezar }: { e: EstadoBloque; datos: Datos; semana: ContextoSemana; hoy: SesionDeHoy | null; ahora: Date; ocupado: boolean; onEmpezar: () => void }) {
+  const ref = e.ref;
+  const plantilla = ref.clase === 'gym' ? datos.rutina.plantillas.find((p) => p.id === ref.plantillaId) : undefined;
+  const prescripcion = prescripcionDe(e, datos, semana, ahora);
+  return (
+    <div>
+      <p className="text-sm text-texto2">{e.veces > 0 ? `${e.hechas} de ${e.veces} esta semana` : 'Fuera de tu plan semanal: cuenta igual en tu historial.'}</p>
+      {e.avisos.map((a) => (
+        <Nota key={a.texto} porQue={a.porQue}>
+          {a.texto}
+        </Nota>
+      ))}
+      {hoy && <Nota porQue="sesion_doble">{notaSesionDoble(hoy, e)}</Nota>}
+      <div className="mt-4">
+        {plantilla && <ListaEjercicios ejercicios={plantilla.ejercicios} datos={datos} descarga={semana.descarga} />}
+        {prescripcion && <BloqueRunning p={prescripcion} />}
+      </div>
+      {plantilla ? (
+        <Boton className="mt-5" disabled={ocupado || !plantilla.ejercicios.length} onClick={onEmpezar}>
+          {ocupado ? 'Termina la sesión en curso primero' : `Empezar ${e.nombre}`}
+        </Boton>
+      ) : (
+        <Boton className="mt-5" onClick={onEmpezar}>
+          Registrar carrera
+        </Boton>
+      )}
+    </div>
+  );
 }
 
 function textoSugerencia(e: EjercicioDef, s: Sugerencia): string {
@@ -148,6 +228,7 @@ function textoSugerencia(e: EjercicioDef, s: Sugerencia): string {
 }
 
 function ListaEjercicios({ ejercicios, datos, descarga }: { ejercicios: EjercicioDef[]; datos: Datos; descarga: boolean }) {
+  if (!ejercicios.length) return <p className="text-[15px] text-texto2">Esta sesión no tiene ejercicios. Agrégalos en Más › Ajustes › Rutina.</p>;
   return (
     <ul className="divide-y divide-linea border-y border-linea">
       {ejercicios.map((e) => {

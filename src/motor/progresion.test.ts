@@ -103,7 +103,7 @@ describe('doble progresión', () => {
   });
 
   it('historialDe ordena por fecha y omite sesiones sin series del ejercicio', () => {
-    const base = { plantillaId: 'p', nombre: 'P', ciclo: 1, vuelta: 1, descarga: false, planificada: true };
+    const base = { plantillaId: 'p', nombre: 'P', descarga: false };
     const sesiones: SesionGym[] = [
       { ...base, id: 'b', fecha: '2026-09-20T20:00:00.000Z', ejercicios: [{ ejercicioId: 'press', nombre: 'Press', series: [{ peso: 32.5, reps: 6 }] }] },
       { ...base, id: 'a', fecha: '2026-09-10T20:00:00.000Z', ejercicios: [{ ejercicioId: 'press', nombre: 'Press', series: [{ peso: 30, reps: 8 }] }] },
