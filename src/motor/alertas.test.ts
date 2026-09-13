@@ -14,30 +14,24 @@ describe('alertas', () => {
 
   it('tobillo ≥2 dos veces en 7 días: −20 % de running y alerta', () => {
     const d = { ...datosPrueba(), molestias: [tobillo(1, 2), tobillo(4, 2)] };
-    expect(ajustesRunning(d, AHORA, false)).toEqual({ factor: 0.8, calidadAZ2: false });
-    const a = alertas(d, AHORA).find((x) => x.id === 'tobillo2')!;
-    expect(a.texto).toContain('equilibrio');
+    expect(ajustesRunning(d, AHORA)).toEqual({ factor: 0.8, calidadAZ2: false });
+    expect(alertas(d, AHORA).find((x) => x.id === 'tobillo2')!.texto).toContain('equilibrio');
   });
 
   it('sin protocolo de tobillo en el plan, la alerta no pide equilibrio', () => {
-    const d = { ...datosPrueba({ tobillo: false }), molestias: [tobillo(1, 2), tobillo(4, 2)] };
+    const d = { ...datosPrueba({}, undefined, false), molestias: [tobillo(1, 2), tobillo(4, 2)] };
     expect(alertas(d, AHORA).find((x) => x.id === 'tobillo2')!.texto).not.toContain('equilibrio');
   });
 
   it('una sola molestia 2, o molestias viejas, no cambian nada', () => {
     const d = { ...datosPrueba(), molestias: [tobillo(1, 2), tobillo(9, 2)] };
-    expect(ajustesRunning(d, AHORA, false)).toEqual({ factor: 1, calidadAZ2: false });
+    expect(ajustesRunning(d, AHORA)).toEqual({ factor: 1, calidadAZ2: false });
   });
 
   it('tobillo 3: la calidad pasa a Z2', () => {
     const d = { ...datosPrueba(), molestias: [tobillo(2, 3)] };
-    expect(ajustesRunning(d, AHORA, false).calidadAZ2).toBe(true);
+    expect(ajustesRunning(d, AHORA).calidadAZ2).toBe(true);
     expect(alertas(d, AHORA).map((a) => a.id)).toContain('tobillo3');
-  });
-
-  it('descarga y tobillo se combinan (0,6 × 0,8)', () => {
-    const d = { ...datosPrueba(), molestias: [tobillo(1, 2), tobillo(2, 3)] };
-    expect(ajustesRunning(d, AHORA, true).factor).toBeCloseTo(0.48, 5);
   });
 
   it('sobre el tope de km en 7 días: aviso', () => {

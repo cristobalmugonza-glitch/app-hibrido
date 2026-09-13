@@ -117,10 +117,11 @@ export const RUTINAS_ESTANDAR: { id: IdRutina; nombre: string; descripcion: stri
   { id: 'cuerpo_completo', nombre: 'Cuerpo completo', descripcion: '3 sesiones de gym por semana' },
   { id: 'torso_pierna', nombre: 'Torso / Pierna', descripcion: '4 sesiones de gym por semana' },
   { id: 'empuje_tiron_piernas', nombre: 'Empuje / Tirón / Piernas', descripcion: '6 sesiones de gym por semana' },
-  { id: 'hibrido', nombre: 'Híbrido', descripcion: '4 de gym y 3 de running por semana' },
+  { id: 'hibrido', nombre: 'Híbrido', descripcion: '4 sesiones de gym y running por semana' },
 ];
 
-export type OpcionesRutina = { running: boolean; tobillo: boolean };
+// running: salidas por semana (null = sin running; la rutina híbrida corre igual). tobillo: incluir el protocolo.
+export type OpcionesRutina = { running: Rutina['running'] | null; tobillo: boolean };
 
 type Item = [string, number, Partial<EjercicioDef>?];
 
@@ -148,7 +149,7 @@ const PIERNA = (tobillo: boolean): Item[] => [
 
 // Rutinas de fábrica. Con las prioridades de cada una, el volumen semanal planificado queda dentro del rango de cada músculo.
 export function construirRutina(id: IdRutina, op: OpcionesRutina): Rutina {
-  const running = op.running || id === 'hibrido' ? { z2: 1, calidad: 1, fondo: 1 } : { z2: 0, calidad: 0, fondo: 0 };
+  const running = op.running ?? (id === 'hibrido' ? { z2: 1, calidad: 1, fondo: 1 } : { z2: 0, calidad: 0, fondo: 0 });
 
   if (id === 'cuerpo_completo') {
     return {

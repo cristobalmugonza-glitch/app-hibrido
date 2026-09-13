@@ -27,10 +27,22 @@ function perfilBase(ahora: Date): Perfil {
     pisoKcal: 1500,
     topeKmSemanal: 30,
     topeFondoKm: 18,
-    fondoKmInicial: 10,
-    z2Km: 6,
+    kmBaseSemanal: 20,
+    metaRunning: 'mejorar',
     ritmoSemillaSegKm: 360,
   };
+}
+
+// Antes el perfil guardaba la distancia del Z2 y del fondo; ahora guarda los km semanales base.
+function perfilActual(p: unknown, running: Record<TipoRunning, number>, ahora: Date, extra: Partial<Perfil> = {}): Perfil {
+  const { z2Km, fondoKmInicial, ...resto } = (esObjeto(p) ? p : {}) as Suelto;
+  const perfil: Perfil = { ...perfilBase(ahora), ...resto, ...extra };
+  if (typeof resto.kmBaseSemanal !== 'number') {
+    const km = numero(z2Km, 0) * running.z2 + numero(fondoKmInicial, 0) * running.fondo + 8 * running.calidad;
+    perfil.kmBaseSemanal = km > 0 ? Math.round(km) : 20;
+  }
+  if (resto.metaRunning !== 'mantener' && resto.metaRunning !== 'mejorar') perfil.metaRunning = 'mejorar';
+  return perfil;
 }
 
 export function migrar(crudo: unknown, ahora = new Date()): Datos | null {
@@ -60,12 +72,13 @@ function esV1(x: Record<string, unknown>): boolean {
 
 // Completa lo que falte en datos v2 (por ejemplo, un respaldo antiguo o editado a mano).
 export function normalizar(d: Suelto, ahora = new Date()): Datos {
+  const running = { z2: numero(d.rutina.running.z2, 0), calidad: numero(d.rutina.running.calidad, 0), fondo: numero(d.rutina.running.fondo, 0) };
   return {
     version: 2,
-    perfil: { ...perfilBase(ahora), ...d.perfil },
+    perfil: perfilActual(d.perfil, running, ahora),
     rutina: {
       plantillas: lista<Suelto>(d.rutina.plantillas).map((p) => ({ id: String(p.id), nombre: String(p.nombre ?? 'Sesión'), ejercicios: lista<EjercicioDef>(p.ejercicios), vecesPorSemana: numero(p.vecesPorSemana, 1) })),
-      running: { z2: numero(d.rutina.running.z2, 0), calidad: numero(d.rutina.running.calidad, 0), fondo: numero(d.rutina.running.fondo, 0) },
+      running,
       prioridades: { ...PRIORIDADES_BASE, ...(esObjeto(d.rutina.prioridades) ? d.rutina.prioridades : {}) },
     },
     ejerciciosPropios: lista(d.ejerciciosPropios),
@@ -150,7 +163,7 @@ function desdeV1(v: Suelto, ahora: Date): Datos {
   return {
     version: 2,
     // La v1 solo la usó el corte de sept 2026: objetivo de perder grasa con el piso de 1.900 kcal acordado.
-    perfil: { ...perfilBase(ahora), ...v.perfil, objetivo: 'perder_grasa', pisoKcal: 1900 },
+    perfil: perfilActual(v.perfil, running, ahora, { objetivo: 'perder_grasa', pisoKcal: 1900 }),
     rutina: { plantillas, running, prioridades: { ...PRIORIDADES_BASE, ...(esObjeto(v.rutina.prioridades) ? v.rutina.prioridades : {}) } },
     // Los ejercicios de la rutina antigua quedan en la biblioteca propia, para reusarlos en cualquier sesión.
     ejerciciosPropios: [...defs.values()],

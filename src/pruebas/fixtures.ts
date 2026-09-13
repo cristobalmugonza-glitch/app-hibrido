@@ -1,9 +1,11 @@
 import type { Datos, SesionGym, SesionRunning, TipoRunning } from '../tipos/modelo';
+import { construirRutina } from '../data/catalogo';
 import { crearDatos, type Respuestas } from '../motor/perfil';
 
 // Datos de prueba reproducibles. Septiembre 2026 en hora local: el lunes 7 empieza una semana.
 export const dia = (d: number, h = 19) => new Date(2026, 8, d, h);
 
+// 3 días de running con salidas de 6 km y una larga de 10 km: 22 km base.
 export const RESPUESTAS: Respuestas = {
   sexo: 'hombre',
   edad: 21,
@@ -13,13 +15,18 @@ export const RESPUESTAS: Respuestas = {
   objetivo: 'perder_grasa',
   rutina: 'torso_pierna',
   corre: true,
-  tobillo: true,
-  kmSemana: 25,
+  diasRunning: 3,
+  kmSalida: 6,
+  kmLarga: 10,
+  metaRunning: 'mejorar',
   ritmoSegKm: 350,
 };
 
-export function datosPrueba(extra: Partial<Respuestas> = {}, ahora = dia(7, 8)): Datos {
-  return crearDatos({ ...RESPUESTAS, ...extra }, ahora);
+// tobillo: arma la rutina con el protocolo de tobillo (el onboarding ya no lo pregunta, pero sigue existiendo).
+export function datosPrueba(extra: Partial<Respuestas> = {}, ahora = dia(7, 8), tobillo = true): Datos {
+  const r = { ...RESPUESTAS, ...extra };
+  const d = crearDatos(r, ahora);
+  return tobillo ? { ...d, rutina: construirRutina(r.rutina, { running: d.rutina.running, tobillo: true }) } : d;
 }
 
 let contador = 0;

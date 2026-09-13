@@ -9,7 +9,7 @@ import { fmt1, fmt2, ritmo } from '../motor/formato';
 import { ratioHombrosCintura } from '../motor/grasa';
 import { tasaSemanal } from '../motor/nutricion';
 import { corre } from '../motor/planificacion';
-import { kmEnVentana, ritmoSesion, tendenciaZ2, zonas } from '../motor/running';
+import { kmEnVentana, promedioReal, ritmoSesion, tendenciaZ2, zonas } from '../motor/running';
 
 // Sin datos: un solo texto que dice cómo aparecen. Con 1 dato: el valor. Con 2 o más: el gráfico.
 function Bloque({ titulo, valor, sub, sinDatos, porQue, children }: { titulo: string; valor: string | null; sub?: string; sinDatos?: string; porQue?: string; children?: ReactNode }) {
@@ -51,6 +51,7 @@ export function Progreso() {
   const grasa: Punto[] = datos.medidas.filter((m) => m.grasaNavy !== undefined).map((m) => ({ fecha: m.fecha, y: m.grasaNavy! }));
   const tasa = tasaSemanal(datos, ahora);
   const km7 = kmEnVentana(datos, ahora, 0, 7);
+  const promedio = promedioReal(datos, ahora);
   const topeZ2 = zonas(datos.perfil.fcMax)[1].hasta;
 
   // Ejercicios con peso registrado, desde el historial: siguen apareciendo aunque salgan del plan.
@@ -104,7 +105,14 @@ export function Progreso() {
         <Grafico series={[{ puntos: grasa, tono: 'acento', conPuntos: true }]} fmtY={fmt1} />
       </Bloque>
 
-      {conRunning && <Bloque titulo="Km en los últimos 7 días" valor={`${fmt1(km7)} km`} sub={`Tope ${datos.perfil.topeKmSemanal} km`} porQue="tope_km" />}
+      {conRunning && (
+        <Bloque
+          titulo="Km en los últimos 7 días"
+          valor={`${fmt1(km7)} km`}
+          sub={promedio !== null ? `Promedio real de 4 semanas: ${fmt1(promedio)} km · tope ${datos.perfil.topeKmSemanal} km` : `Tope ${datos.perfil.topeKmSemanal} km`}
+          porQue="km_semanales"
+        />
+      )}
 
       <section className="border-b border-linea py-5">
         <h2 className="text-sm text-texto2">Carga por ejercicio</h2>

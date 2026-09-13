@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { Datos, Objetivo, Perfil, Sexo } from '../tipos/modelo';
+import type { Datos, MetaRunning, Objetivo, Perfil, Sexo } from '../tipos/modelo';
 import { useDatos } from '../almacen/contexto';
 import { exportarJSON, leerJSON } from '../almacen/exportar';
 import { aNum, Boton, Campo, deNum, Encabezado, Fila, Hoja, Segmentado, Volver } from '../componentes/ui';
@@ -93,7 +93,7 @@ export function Ajustes({ onVolver }: { onVolver: () => void }) {
   );
 }
 
-type Clave = 'altura' | 'pesoInicial' | 'fcMax' | 'caloriasObjetivo' | 'proteinaObjetivo' | 'grasaObjetivo' | 'pisoKcal' | 'z2Km' | 'fondoKmInicial' | 'topeFondoKm' | 'topeKmSemanal';
+type Clave = 'altura' | 'pesoInicial' | 'fcMax' | 'caloriasObjetivo' | 'proteinaObjetivo' | 'grasaObjetivo' | 'pisoKcal' | 'kmBaseSemanal' | 'topeFondoKm' | 'topeKmSemanal';
 
 const CUERPO: { k: Clave; etiqueta: string; unidad: string }[] = [
   { k: 'altura', etiqueta: 'Altura', unidad: 'cm' },
@@ -107,8 +107,7 @@ const NUTRICION: { k: Clave; etiqueta: string; unidad: string }[] = [
   { k: 'grasaObjetivo', etiqueta: 'Grasa', unidad: 'g' },
 ];
 const RUNNING: { k: Clave; etiqueta: string; unidad: string }[] = [
-  { k: 'z2Km', etiqueta: 'Distancia Z2', unidad: 'km' },
-  { k: 'fondoKmInicial', etiqueta: 'Fondo inicial', unidad: 'km' },
+  { k: 'kmBaseSemanal', etiqueta: 'Km semanales base', unidad: 'km' },
   { k: 'topeFondoKm', etiqueta: 'Tope fondo', unidad: 'km' },
   { k: 'topeKmSemanal', etiqueta: 'Tope semanal', unidad: 'km' },
 ];
@@ -118,6 +117,7 @@ function FormPerfil({ onCerrar }: { onCerrar: () => void }) {
   const { datos, actualizar } = useDatos();
   const [sexo, setSexo] = useState<Sexo>(datos.perfil.sexo);
   const [objetivo, setObjetivo] = useState<Objetivo>(datos.perfil.objetivo);
+  const [metaRunning, setMetaRunning] = useState<MetaRunning>(datos.perfil.metaRunning);
   const [edad, setEdad] = useState(deNum(datos.perfil.edad));
   const [valores, setValores] = useState<Record<string, string>>(() => Object.fromEntries(TODOS.map((c) => [c.k, deNum(datos.perfil[c.k])])));
   const [ritmoTexto, setRitmoTexto] = useState(ritmo(datos.perfil.ritmoSemillaSegKm));
@@ -139,7 +139,7 @@ function FormPerfil({ onCerrar }: { onCerrar: () => void }) {
   };
 
   const guardar = () => {
-    const nuevo: Perfil = { ...datos.perfil, sexo, objetivo, ...(e && e > 0 ? { edad: Math.round(e) } : {}) };
+    const nuevo: Perfil = { ...datos.perfil, sexo, objetivo, metaRunning, ...(e && e > 0 ? { edad: Math.round(e) } : {}) };
     for (const c of TODOS) {
       const n = v(c.k);
       // La altura se acepta también en metros (1,78).
@@ -194,9 +194,21 @@ function FormPerfil({ onCerrar }: { onCerrar: () => void }) {
       {corre(datos) && (
         <>
           <h3 className="mb-2 mt-6 text-sm text-texto2">Running</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <Campo etiqueta="Ritmo sin test" valor={ritmoTexto} onCambio={setRitmoTexto} unidad="/km" teclado="text" />
+          <Segmentado<MetaRunning>
+            opciones={[
+              { valor: 'mantener', etiqueta: 'Mantener forma' },
+              { valor: 'mejorar', etiqueta: 'Mejorar' },
+            ]}
+            valor={metaRunning}
+            onCambio={setMetaRunning}
+          />
+          <div className="mt-2 flex items-start gap-2">
+            <p className="flex-1 text-sm text-texto2">{metaRunning === 'mantener' ? 'Tus km base cada semana, con 1 sesión de calidad para no perder el ritmo.' : 'Los km suben hasta 8 % por semana cuando cumples lo planificado.'}</p>
+            <PorQue id={metaRunning === 'mantener' ? 'mantener_running' : 'progresion_running'} pequeno />
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-3">
             {campos(RUNNING)}
+            <Campo etiqueta="Ritmo sin test" valor={ritmoTexto} onCambio={setRitmoTexto} unidad="/km" teclado="text" />
           </div>
         </>
       )}

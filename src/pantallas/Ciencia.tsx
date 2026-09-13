@@ -33,6 +33,7 @@ export function Ciencia() {
     if (filtroRef === 'todas') return true;
     if (filtroRef === 'disputa') return r.enDisputa;
     if (filtroRef === 'metaanalisis') return r.nivelEvidencia === 'metaanalisis' || r.nivelEvidencia === 'revision_sistematica';
+    if (filtroRef === 'eca') return r.nivelEvidencia === 'eca' || r.nivelEvidencia === 'experimental';
     return r.nivelEvidencia === filtroRef;
   });
 

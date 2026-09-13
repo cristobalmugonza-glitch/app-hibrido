@@ -1,26 +1,12 @@
 import type { Datos, Musculo, PlantillaGym, RefBloque, TipoSemana } from '../tipos/modelo';
 import { CATALOGO_POR_ID, desdeCatalogo } from '../data/catalogo';
 import { MUSCULOS, NOMBRE_MUSCULO, OBJETIVO_SERIES, TREN_INFERIOR } from '../data/reglas-tipo';
-import { ajustesRunning } from './alertas';
 import { pendientes } from './benchmarks';
-import { fmt0, fmt1, fmt2 } from './formato';
+import { fmt0, fmt1, fmt2, plural } from './formato';
 import { aplicarKcal, propuestaKcal } from './nutricion';
-import {
-  contextoSemana,
-  corre,
-  decidirTipo,
-  hechasEnSemana,
-  listaBloques,
-  planGuardado,
-  primeraSemana,
-  SEMANAS_DE_CARGA,
-  sesionesPlanificadas,
-  TIPOS_RUNNING,
-  totalSesiones,
-  type ContextoSemana,
-} from './planificacion';
+import { contextoSemana, corre, decidirTipo, hechasEnSemana, listaBloques, planGuardado, primeraSemana, SEMANAS_DE_CARGA, sesionesPlanificadas, totalSesiones } from './planificacion';
 import { historialDe, sugerir } from './progresion';
-import { fondoKm, kmEnVentana, nombreCalidad, prescribir } from './running';
+import { kmEnVentana, nombreCalidad, planRunning, porQueObjetivoKm, salidasPorSemana, textoObjetivoKm } from './running';
 import { aFechaLocal, inicioSemana, sumarDias } from './semanas';
 import { listaTexto } from './sugerencia';
 import { seriesPlanificadas, seriesPorSesion } from './volumen';
@@ -195,33 +181,37 @@ function ajusteAdherencia(datos: Datos, actual: string): Ajuste | null {
   };
 }
 
-function ajustesDeRunning(datos: Datos, ctx: ContextoSemana, ctxActual: ContextoSemana, ahora: Date): Ajuste[] {
+function ajustesDeRunning(datos: Datos, inicio: string, ahora: Date): Ajuste[] {
   if (!corre(datos)) return [];
   const { perfil, rutina } = datos;
-  const aj = ajustesRunning(datos, ahora, ctx.descarga);
-  const tipos = TIPOS_RUNNING.filter((t) => rutina.running[t] > 0);
-  const salidas = tipos.reduce((a, t) => a + rutina.running[t], 0);
-  const km = tipos.reduce((a, t) => a + rutina.running[t] * prescribir(t, datos, ctx.mesociclo, aj).km, 0);
-  const subeFondo = rutina.running.fondo > 0 && fondoKm(perfil, ctx.mesociclo) > fondoKm(perfil, ctxActual.mesociclo);
-  const partes: string[] = [];
-  if (rutina.running.calidad > 0) partes.push(`calidad ${aj.calidadAZ2 ? 'en Z2 por el tobillo' : nombreCalidad(ctx.mesociclo)}`);
-  if (rutina.running.fondo > 0) partes.push(`fondo de ${fmt1(prescribir('fondo', datos, ctx.mesociclo, aj).km)} km${subeFondo ? ' (sube 1 km)' : ''}`);
+  const plan = planRunning(datos, inicio, ahora);
+  const r = plan.reparto;
+  const salidas = salidasPorSemana(datos);
 
-  const res: Ajuste[] = [
-    {
-      id: 'running',
-      titulo: `Running: ${fmt1(km)} km en ${salidas} ${salidas === 1 ? 'salida' : 'salidas'}`,
-      detalle: partes.length ? partes.join(' · ').replace(/^./, (c) => c.toUpperCase()) : undefined,
-      porQue: subeFondo ? 'fondo_progresion' : 'calidad',
-    },
-  ];
-  if (km > perfil.topeKmSemanal) {
-    res.push({ id: 'running-tope', titulo: `Pasas tu tope de ${perfil.topeKmSemanal} km`, detalle: 'Acorta el fondo o saca una salida.', porQue: 'tope_km' });
+  const partes: string[] = [];
+  if (rutina.running.calidad > 0) partes.push(`calidad ${nombreCalidad(plan.mesociclo)} con ${plural(r.repeticiones, 'repetición', 'repeticiones')}`);
+  if (rutina.running.fondo > 0) partes.push(`fondo de ${fmt1(r.fondo)} km`);
+  if (rutina.running.z2 > 0) partes.push(`${rutina.running.z2 > 1 ? `${rutina.running.z2} × ` : ''}Z2 de ${fmt1(r.z2)} km`);
+  const detalle = [textoObjetivoKm(plan.objetivo), partes.length ? `${partes.join(' · ').replace(/^./, (c) => c.toUpperCase())}.` : ''].filter(Boolean).join(' ');
+
+  const res: Ajuste[] = [{ id: 'running', titulo: `Running: ${fmt1(r.total)} km en ${plural(salidas, 'salida')}`, detalle, porQue: porQueObjetivoKm(plan.objetivo) }];
+
+  // Para mantener hacen falta al menos 2 salidas y conservar la intensidad.
+  if (perfil.metaRunning === 'mantener' && (salidas < 2 || rutina.running.calidad === 0)) {
+    const sinCalidad = rutina.running.calidad === 0;
+    res.push({
+      id: 'running-mantener',
+      titulo: sinCalidad ? 'Para no perder el ritmo te falta una sesión de calidad' : 'Para no perder forma te falta una salida',
+      detalle: sinCalidad ? 'La intensidad es lo que más conserva el rendimiento cuando corres menos.' : 'Con al menos 2 salidas por semana se mantiene el rendimiento aeróbico.',
+      porQue: 'mantener_running',
+      accion: { tipo: 'veces', ref: { clase: 'running', tipo: sinCalidad ? 'calidad' : 'z2' }, delta: 1 },
+    });
   }
+
   const recientes = datos.sesionesRunning.filter((s) => (ahora.getTime() - new Date(s.fecha).getTime()) / 86_400_000 < 28);
   const promedio = kmEnVentana(datos, ahora, 0, 28) / 4;
-  if (recientes.length >= 4 && promedio > 0 && km > promedio * 1.3) {
-    res.push({ id: 'running-salto', titulo: `Son ${fmt0((km / promedio - 1) * 100)} % más km que tu promedio reciente`, detalle: `Promedio de 4 semanas: ${fmt1(promedio)} km. Sube de a poco.`, porQue: 'salto_carga' });
+  if (recientes.length >= 4 && promedio > 0 && r.total > promedio * 1.3) {
+    res.push({ id: 'running-salto', titulo: `Son ${fmt0((r.total / promedio - 1) * 100)} % más km que tu promedio reciente`, detalle: `Promedio de 4 semanas: ${fmt1(promedio)} km. Sube de a poco.`, porQue: 'salto_carga' });
   }
   return res;
 }
@@ -232,7 +222,6 @@ export function proyectarSemana(datos: Datos, ahora = new Date()): Proyeccion {
   // La semana en curso cuenta como entrenada: la proyección asume que la completas.
   const decision = decidirTipo(datos, inicio, actual);
   const ctx = contextoSemana(datos, inicio, actual);
-  const ctxActual = contextoSemana(datos, actual);
   const descarga = decision.tipo === 'descarga';
 
   const tipo: Ajuste = descarga
@@ -261,7 +250,7 @@ export function proyectarSemana(datos: Datos, ahora = new Date()): Proyeccion {
     ...(descarga ? [] : ajustesCarga(datos)),
     ...(adherencia ? [adherencia] : []),
     ...(descarga ? [] : ajustesVolumen(datos)),
-    ...ajustesDeRunning(datos, ctx, ctxActual, ahora),
+    ...ajustesDeRunning(datos, inicio, ahora),
     ...(kcal ? [{ id: 'kcal', titulo: kcal.texto, porQue: kcal.porQue, accion: kcal.deltaKcal ? ({ tipo: 'kcal', delta: kcal.deltaKcal } as Accion) : undefined }] : []),
     ...(tests.length ? [{ id: 'tests', titulo: `Toca registrar: ${listaTexto(tests)}`, porQue: 'benchmarks' }] : []),
   ];

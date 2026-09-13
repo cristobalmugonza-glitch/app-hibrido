@@ -1,24 +1,13 @@
 import type { Datos } from '../tipos/modelo';
-import { diasEntre, enVentana } from './fechas';
+import { diasEntre } from './fechas';
 import { fmt0, fmt1 } from './formato';
 import { pesoActual, perdidaRapida } from './nutricion';
 import { corre } from './planificacion';
-import { kmEnVentana, saltoCarga, tieneProtocoloTobillo, type AjustesRunning } from './running';
+import { estadoTobillo, kmEnVentana, saltoCarga, tieneProtocoloTobillo } from './running';
+
+export { ajustesRunning, estadoTobillo } from './running';
 
 export type Alerta = { id: string; texto: string; porQue: string };
-
-export function estadoTobillo(datos: Datos, ahora: Date) {
-  const recientes = datos.molestias.filter((m) => m.zona === 'tobillo' && enVentana(m.fecha, ahora, 0, 7));
-  return {
-    repetida: recientes.filter((m) => m.intensidad >= 2).length >= 2,
-    severa: recientes.some((m) => m.intensidad === 3),
-  };
-}
-
-export function ajustesRunning(datos: Datos, ahora: Date, descarga: boolean): AjustesRunning {
-  const t = estadoTobillo(datos, ahora);
-  return { factor: (descarga ? 0.6 : 1) * (t.repetida ? 0.8 : 1), calidadAZ2: t.severa };
-}
 
 // Informan, no bloquean. Tono de entrenador.
 export function alertas(datos: Datos, ahora = new Date()): Alerta[] {

@@ -215,18 +215,37 @@ export const PORQUES_LISTA: PorQue[] = [
   P({
     id: 'calidad', tema: 'running', titulo: 'Sesión de calidad', etiqueta: 'limitada',
     texto: [
-      'La calidad rota sola en cada bloque de carga: fartlek, luego 800 m, luego 1000 m. Varías el estímulo sin subir el volumen al mismo tiempo.',
-      'Tres palancas, nunca las tres a la vez: densidad aeróbica (la principal), calidad y volumen (último recurso).',
+      'La calidad rota en cada bloque de carga: fartlek, luego 800 m, luego 1000 m. Dentro del bloque suma una repetición por semana de carga y en descarga resta una. Con poco volumen semanal las repeticiones se acortan.',
+      'Es la sesión que conserva tu ritmo: con la misma frecuencia y duración, bajar la intensidad hizo perder capacidad aeróbica y resistencia. La mayor parte del resto del running va suave.',
+      'La rotación y el número de repeticiones son práctica común, no una receta probada.',
     ],
-    refs: ['seiler2010'],
+    refs: ['hickson1985', 'seiler2010'],
   }),
   P({
-    id: 'fondo_progresion', tema: 'running', titulo: 'Fondo largo', etiqueta: 'discusion',
+    id: 'progresion_running', tema: 'running', titulo: 'Cómo suben tus km', etiqueta: 'discusion',
     texto: [
-      'El fondo sube 1 km cada 2 bloques (~8 semanas), hasta el tope de tu perfil. Es la palanca que menos se toca porque es la que más carga piernas y tobillos.',
-      'La "regla del 10 %" no redujo lesiones en novatos, y los aumentos de más de 30 % mostraron una señal no concluyente de más lesiones por distancia. Subir poco y de a poco es la opción prudente.',
+      'Si tu meta es mejorar, los km de la semana suben 8 % (al menos 1 km) cuando cumpliste el 80 % o más de tu última semana de carga. Entre 50 y 80 % se repiten; bajo 50 % bajan 10 %, sin caer de 2/3 de tus km base. Con molestias de tobillo, rodilla o cadera no suben, y en descarga corres el 60 %.',
+      'La evidencia sobre cuánto subir es muy limitada: subir más de 30 % se asoció a más lesiones por distancia, pero no hubo diferencia entre subir 10 % y 24 % en promedio, y la "regla del 10 %" no redujo lesiones en novatos. El 8 % es una opción prudente, no una cifra probada.',
+      'Los km se reparten con el fondo como la salida larga (45 % de la semana con 3 salidas, hasta tu tope de fondo), la calidad según sus repeticiones y el resto en Z2.',
     ],
-    refs: ['buist2008', 'nielsen2014'],
+    refs: ['damsted2018', 'nielsen2014', 'buist2008'],
+  }),
+  P({
+    id: 'mantener_running', tema: 'running', titulo: 'Cuánto correr para no perder el ritmo',
+    texto: [
+      'El rendimiento aeróbico se mantuvo hasta 15 semanas con solo 2 sesiones por semana, o bajando el volumen entre 33 y 66 %, siempre que se conservara la intensidad.',
+      'La intensidad es lo que más protege: con la misma frecuencia y duración, bajar la intensidad redujo la capacidad aeróbica y la resistencia. Y si paras del todo, la capacidad aeróbica cae en pocas semanas.',
+      'Por eso, en modo mantener la app deja tus km base fijos y te pide al menos 2 salidas y 1 de calidad por semana. La semana de descarga (60 % de los km, manteniendo la calidad) queda dentro de ese margen.',
+    ],
+    refs: ['spiering2021', 'hickson1985', 'mujika2000'],
+  }),
+  P({
+    id: 'km_semanales', tema: 'running', titulo: 'Cómo saber cuánto corres', etiqueta: 'limitada',
+    texto: [
+      'Si usas reloj o Strava, tu total semanal aparece ahí: usa el promedio de las últimas 4 semanas. Si no, estímalo con los días que corres por semana y la distancia de una salida normal, cambiando una de ellas por tu salida más larga.',
+      'Es solo el punto de partida. Después la app mide tus km reales: en Semana y Progreso ves tu promedio de 4 semanas, y la progresión se ajusta a lo que realmente cumples.',
+    ],
+    refs: [],
   }),
   P({
     id: 'tope_km', tema: 'running', titulo: 'Tope de km semanales', etiqueta: 'limitada',

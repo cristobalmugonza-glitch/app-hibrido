@@ -60,8 +60,11 @@ describe('migración de la versión 1', () => {
     expect(d.pesos).toEqual(V1.pesos);
   });
 
-  it('mantiene los objetivos del corte y el bloque en curso', () => {
-    expect(d.perfil).toMatchObject({ objetivo: 'perder_grasa', pisoKcal: 1900, caloriasObjetivo: 2450, fcMax: 199 });
+  it('mantiene los objetivos del corte, pasa las distancias a km semanales y conserva el bloque en curso', () => {
+    // Z2 de 8 km + fondo de 14 km + calidad (~8 km) = 30 km base.
+    expect(d.perfil).toMatchObject({ objetivo: 'perder_grasa', pisoKcal: 1900, caloriasObjetivo: 2450, fcMax: 199, kmBaseSemanal: 30, metaRunning: 'mejorar', topeKmSemanal: 38 });
+    expect(d.perfil).not.toHaveProperty('z2Km');
+    expect(d.perfil).not.toHaveProperty('fondoKmInicial');
     expect(d.mesociclosPrevios).toBe(1);
     // La vuelta 4 de la cola era descarga: la semana en curso lo sigue siendo.
     expect(d.planes).toEqual([{ inicio: '2026-09-07', tipo: 'descarga', sesiones: 5 }]);
@@ -78,21 +81,29 @@ describe('migración de la versión 1', () => {
   });
 });
 
-describe('datos inválidos', () => {
-  it('devuelve null en vez de romper la app', () => {
-    expect(migrar('texto')).toBeNull();
-    expect(migrar(null)).toBeNull();
-    expect(migrar({ version: 3 })).toBeNull();
-    expect(migrar({ version: 1, perfil: {} })).toBeNull();
-    expect(migrar({ version: 2, perfil: { fcMax: 190 }, rutina: { plantillas: [] } })).toBeNull();
+describe('datos v2', () => {
+  it('un perfil v2 con las distancias antiguas pasa a km semanales', () => {
+    const d = migrar({ version: 2, perfil: { fcMax: 199, z2Km: 8, fondoKmInicial: 14 }, rutina: { plantillas: [], running: { z2: 1, calidad: 1, fondo: 1 } } })!;
+    expect(d.perfil.kmBaseSemanal).toBe(30);
+    expect(d.perfil.metaRunning).toBe('mejorar');
+    expect(d.perfil).not.toHaveProperty('z2Km');
   });
 
   it('completa lo que falte en un respaldo v2 incompleto', () => {
     const d = migrar({ version: 2, perfil: { fcMax: 185 }, rutina: { plantillas: [{ id: 'a', nombre: 'A', ejercicios: [] }], running: {} } })!;
     expect(d.perfil.fcMax).toBe(185);
+    expect(d.perfil.kmBaseSemanal).toBe(20);
     expect(d.rutina.plantillas[0].vecesPorSemana).toBe(1);
     expect(d.rutina.running).toEqual({ z2: 0, calidad: 0, fondo: 0 });
     expect(d.sesionesGym).toEqual([]);
     expect(d.planes).toEqual([]);
+  });
+
+  it('datos inválidos devuelven null en vez de romper la app', () => {
+    expect(migrar('texto')).toBeNull();
+    expect(migrar(null)).toBeNull();
+    expect(migrar({ version: 3 })).toBeNull();
+    expect(migrar({ version: 1, perfil: {} })).toBeNull();
+    expect(migrar({ version: 2, perfil: { fcMax: 190 }, rutina: { plantillas: [] } })).toBeNull();
   });
 });

@@ -69,7 +69,7 @@ describe('proyección de la semana siguiente', () => {
   it('las rutinas estándar no piden cambios de volumen', () => {
     for (const r of RUTINAS_ESTANDAR) {
       for (const tobillo of [true, false]) {
-        const d = datosPrueba({ rutina: r.id, tobillo });
+        const d = datosPrueba({ rutina: r.id }, undefined, tobillo);
         expect(proyectarSemana(d, dia(9)).ajustes.filter((a) => a.id.startsWith('vol-')), `${r.id} tobillo=${tobillo}`).toEqual([]);
       }
     }
@@ -79,8 +79,7 @@ describe('proyección de la semana siguiente', () => {
     let d = datosPrueba();
     d = conGym(conGym(d, 'torso', dia(8)), 'pierna', dia(9));
     d = conGym(conGym(d, 'torso', dia(15)), 'pierna', dia(16));
-    const a = ajuste(d, 'adherencia', dia(22))!;
-    expect(a.accion).toMatchObject({ tipo: 'veces', delta: -1 });
+    expect(ajuste(d, 'adherencia', dia(22))!.accion).toMatchObject({ tipo: 'veces', delta: -1 });
     // 4 de 7 (57 %) todavía está bajo el 70 %; con 5 de 7 (71 %) ya no.
     const cuatro = semanaEntrenada(semanaEntrenada(datosPrueba(), 7), 14);
     expect(ajuste(cuatro, 'adherencia', dia(22))).toBeDefined();
@@ -97,11 +96,20 @@ describe('proyección de la semana siguiente', () => {
     expect(propuestaKcal(aplicado, dia(30, 12))).toBeNull();
   });
 
-  it('running: resume los km y avisa si pasan el tope', () => {
-    const d = datosPrueba();
-    expect(ajuste(d, 'running')?.titulo).toMatch(/km en 3 salidas/);
-    expect(ajuste({ ...d, perfil: { ...d.perfil, topeKmSemanal: 10 } }, 'running-tope')).toBeDefined();
+  it('running: resume los km de la semana y cómo progresan', () => {
+    const d = conCarrera(conCarrera(conCarrera(datosPrueba(), 'z2', dia(14)), 'calidad', dia(15)), 'fondo', dia(16));
+    const a = ajuste(d, 'running')!;
+    expect(a.titulo).toMatch(/km en 3 salidas$/);
+    expect(a.detalle).toContain('si completas');
+    expect(a.porQue).toBe('progresion_running');
     expect(ajuste(datosPrueba({ corre: false }), 'running')).toBeUndefined();
+  });
+
+  it('en modo mantener sin sesión de calidad, propone sumarla', () => {
+    let d = datosPrueba({ metaRunning: 'mantener' });
+    d = { ...d, rutina: { ...d.rutina, running: { z2: 2, calidad: 0, fondo: 0 } } };
+    expect(ajuste(d, 'running-mantener')?.accion).toEqual({ tipo: 'veces', ref: { clase: 'running', tipo: 'calidad' }, delta: 1 });
+    expect(ajuste(datosPrueba({ metaRunning: 'mantener' }), 'running-mantener')).toBeUndefined();
   });
 
   it('recuerda los tests pendientes', () => {

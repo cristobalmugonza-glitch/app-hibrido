@@ -96,6 +96,6 @@ export function fijarVeces(datos: Datos, ref: RefBloque, veces: number): Datos {
 
 // Reemplaza el plan por una rutina estándar. El historial queda intacto y tus ejercicios propios pasan a la biblioteca.
 export function aplicarRutinaEstandar(datos: Datos, id: IdRutina): Datos {
-  const rutina = construirRutina(id, { running: corre(datos), tobillo: tieneProtocoloTobillo(datos) });
+  const rutina = construirRutina(id, { running: corre(datos) ? datos.rutina.running : null, tobillo: tieneProtocoloTobillo(datos) });
   return { ...datos, rutina, ejerciciosPropios: misEjercicios(datos) };
 }

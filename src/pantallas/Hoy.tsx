@@ -10,7 +10,7 @@ import { pendientes } from '../motor/benchmarks';
 import { fmt0, fmt1, fmt2, plural } from '../motor/formato';
 import { contextoSemana, SEMANAS_DE_CARGA, sesionesPlanificadas, totalSesiones, type ContextoSemana } from '../motor/planificacion';
 import { historialDe, sugerir, type Sugerencia } from '../motor/progresion';
-import { prescribir, type Prescripcion } from '../motor/running';
+import { planRunning, prescribir, type PlanRunning, type Prescripcion } from '../motor/running';
 import { inicioSemana, rangoSemana } from '../motor/semanas';
 import { iniciarGym } from '../motor/sesiones';
 import { estadoBloques, sesionDeHoy, sugerirBloque, type EstadoBloque, type SesionDeHoy } from '../motor/sugerencia';
@@ -24,6 +24,7 @@ export function Hoy({ onAbrirRegistro }: { onAbrirRegistro: () => void }) {
 
   const ahora = new Date();
   const semana = contextoSemana(datos, inicioSemana(ahora));
+  const planRun = planRunning(datos, semana.inicio, ahora);
   const estados = estadoBloques(datos, ahora);
   const sugerencia = sugerirBloque(estados);
   const hoy = sesionDeHoy(datos, ahora);
@@ -101,11 +102,11 @@ export function Hoy({ onAbrirRegistro }: { onAbrirRegistro: () => void }) {
         {planificados.length ? (
           <ul className="mt-1 divide-y divide-linea border-y border-linea">
             {planificados.map((e) => (
-              <FilaBloque key={e.key} e={e} sub={resumenBloque(e, datos, semana, ahora)} onClick={() => setDetalle(e.key)} />
+              <FilaBloque key={e.key} e={e} sub={resumenBloque(e, datos, semana, planRun, ahora)} onClick={() => setDetalle(e.key)} />
             ))}
           </ul>
         ) : (
-          <p className="mt-2 text-[15px] text-texto2">Tu plan semanal está vacío. Agrega bloques en Más › Ajustes › Rutina.</p>
+          <p className="mt-2 text-[15px] text-texto2">Tu plan semanal está vacío. Agrega bloques en Más › Ajustes › Plan semanal.</p>
         )}
         {otros.length > 0 && (
           <>
@@ -115,7 +116,7 @@ export function Hoy({ onAbrirRegistro }: { onAbrirRegistro: () => void }) {
             {verOtros && (
               <ul className="divide-y divide-linea border-y border-linea">
                 {otros.map((e) => (
-                  <FilaBloque key={e.key} e={e} sub={resumenBloque(e, datos, semana, ahora)} onClick={() => setDetalle(e.key)} />
+                  <FilaBloque key={e.key} e={e} sub={resumenBloque(e, datos, semana, planRun, ahora)} onClick={() => setDetalle(e.key)} />
                 ))}
               </ul>
             )}
@@ -132,7 +133,7 @@ export function Hoy({ onAbrirRegistro }: { onAbrirRegistro: () => void }) {
       )}
 
       <Hoja abierta={!!abierto} onCerrar={() => setDetalle(null)} titulo={abierto?.nombre ?? ''}>
-        {abierto && <DetalleBloque e={abierto} datos={datos} semana={semana} hoy={hoy} ahora={ahora} ocupado={!!enCurso} onEmpezar={() => empezar(abierto)} />}
+        {abierto && <DetalleBloque e={abierto} datos={datos} semana={semana} plan={planRun} hoy={hoy} ahora={ahora} ocupado={!!enCurso} onEmpezar={() => empezar(abierto)} />}
       </Hoja>
 
       <RegistrarHoja abierta={registrar} onCerrar={() => setRegistrar(false)} />
@@ -162,11 +163,11 @@ function FilaBloque({ e, sub, onClick }: { e: EstadoBloque; sub: string; onClick
   );
 }
 
-function prescripcionDe(e: EstadoBloque, datos: Datos, semana: ContextoSemana, ahora: Date): Prescripcion | null {
-  return e.ref.clase === 'running' ? prescribir(e.ref.tipo, datos, semana.mesociclo, ajustesRunning(datos, ahora, semana.descarga)) : null;
+function prescripcionDe(e: EstadoBloque, datos: Datos, plan: PlanRunning, ahora: Date): Prescripcion | null {
+  return e.ref.clase === 'running' ? prescribir(e.ref.tipo, datos, plan, ajustesRunning(datos, ahora)) : null;
 }
 
-function resumenBloque(e: EstadoBloque, datos: Datos, semana: ContextoSemana, ahora: Date): string {
+function resumenBloque(e: EstadoBloque, datos: Datos, semana: ContextoSemana, plan: PlanRunning, ahora: Date): string {
   const ref = e.ref;
   if (ref.clase === 'gym') {
     const p = datos.rutina.plantillas.find((x) => x.id === ref.plantillaId);
@@ -175,7 +176,7 @@ function resumenBloque(e: EstadoBloque, datos: Datos, semana: ContextoSemana, ah
     return `${plural(p.ejercicios.length, 'ejercicio')} · ${plural(series, 'serie')}`;
   }
   // El nombre del bloque ya dice Z2 o fondo; solo la calidad agrega el tipo de sesión.
-  const pr = prescripcionDe(e, datos, semana, ahora)!;
+  const pr = prescripcionDe(e, datos, plan, ahora)!;
   return ref.tipo === 'calidad' ? `${pr.etiqueta} · ${fmt1(pr.km)} km` : `${fmt1(pr.km)} km`;
 }
 
@@ -188,10 +189,28 @@ function notaSesionDoble(hoy: SesionDeHoy, e: EstadoBloque): string {
   return `${base}.`;
 }
 
-function DetalleBloque({ e, datos, semana, hoy, ahora, ocupado, onEmpezar }: { e: EstadoBloque; datos: Datos; semana: ContextoSemana; hoy: SesionDeHoy | null; ahora: Date; ocupado: boolean; onEmpezar: () => void }) {
+function DetalleBloque({
+  e,
+  datos,
+  semana,
+  plan,
+  hoy,
+  ahora,
+  ocupado,
+  onEmpezar,
+}: {
+  e: EstadoBloque;
+  datos: Datos;
+  semana: ContextoSemana;
+  plan: PlanRunning;
+  hoy: SesionDeHoy | null;
+  ahora: Date;
+  ocupado: boolean;
+  onEmpezar: () => void;
+}) {
   const ref = e.ref;
   const plantilla = ref.clase === 'gym' ? datos.rutina.plantillas.find((p) => p.id === ref.plantillaId) : undefined;
-  const prescripcion = prescripcionDe(e, datos, semana, ahora);
+  const prescripcion = prescripcionDe(e, datos, plan, ahora);
   return (
     <div>
       <p className="text-sm text-texto2">{e.veces > 0 ? `${e.hechas} de ${e.veces} esta semana` : 'Fuera de tu plan semanal: cuenta igual en tu historial.'}</p>
@@ -228,7 +247,7 @@ function textoSugerencia(e: EjercicioDef, s: Sugerencia): string {
 }
 
 function ListaEjercicios({ ejercicios, datos, descarga }: { ejercicios: EjercicioDef[]; datos: Datos; descarga: boolean }) {
-  if (!ejercicios.length) return <p className="text-[15px] text-texto2">Esta sesión no tiene ejercicios. Agrégalos en Más › Ajustes › Rutina.</p>;
+  if (!ejercicios.length) return <p className="text-[15px] text-texto2">Esta sesión no tiene ejercicios. Agrégalos en Más › Ajustes › Plan semanal.</p>;
   return (
     <ul className="divide-y divide-linea border-y border-linea">
       {ejercicios.map((e) => {

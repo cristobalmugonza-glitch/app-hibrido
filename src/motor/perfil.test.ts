@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RESPUESTAS } from '../pruebas/fixtures';
-import { alturaCm, calcularObjetivos, crearDatos, distanciasRunning, factorActividad, fcMaxTanaka, reposoMifflin, validarDatosBasicos } from './perfil';
+import { alturaCm, calcularObjetivos, crearDatos, distanciasRunning, factorActividad, fcMaxTanaka, kmSemanaEstimado, reposoMifflin, salidasSegunDias, validarDatosBasicos } from './perfil';
 
 describe('estimaciones', () => {
   it('Mifflin-St Jeor', () => {
@@ -44,6 +44,31 @@ describe('datos del primer paso', () => {
   });
 });
 
+describe('running del primer paso', () => {
+  it('km semanales con lo que un corredor sabe: días × salida normal, cambiando una por la más larga', () => {
+    expect(kmSemanaEstimado(3, 8, 14)).toBe(30);
+    expect(kmSemanaEstimado(2, 6, 4)).toBe(12);
+    expect(kmSemanaEstimado(0, 8, 14)).toBe(0);
+  });
+
+  it('salidas por semana según los días que ya corres', () => {
+    expect([0, 1, 2, 3, 4, 5, 6].map(salidasSegunDias)).toEqual([
+      { z2: 2, calidad: 0, fondo: 1 },
+      { z2: 1, calidad: 0, fondo: 0 },
+      { z2: 0, calidad: 1, fondo: 1 },
+      { z2: 1, calidad: 1, fondo: 1 },
+      { z2: 2, calidad: 1, fondo: 1 },
+      { z2: 3, calidad: 1, fondo: 1 },
+      { z2: 3, calidad: 1, fondo: 1 },
+    ]);
+  });
+
+  it('punto de partida y topes', () => {
+    expect(distanciasRunning(30, 14)).toEqual({ kmBaseSemanal: 30, topeKmSemanal: 45, topeFondoKm: 20 });
+    expect(distanciasRunning(0, 0)).toEqual({ kmBaseSemanal: 8, topeKmSemanal: 18, topeFondoKm: 10 });
+  });
+});
+
 describe('objetivos iniciales', () => {
   const base = { sexo: 'hombre' as const, peso: 80, altura: 178, edad: 21, sesiones: 7 };
 
@@ -63,33 +88,30 @@ describe('objetivos iniciales', () => {
   });
 
   it('la grasa no baja de 0,8 g/kg', () => {
-    const o = calcularObjetivos({ ...base, peso: 120, objetivo: 'perder_grasa' });
-    expect(o.grasa).toBeGreaterThanOrEqual(96);
-  });
-
-  it('distancias de running a partir de los km actuales', () => {
-    expect(distanciasRunning(25)).toEqual({ z2Km: 6, fondoKmInicial: 9, topeFondoKm: 15, topeKmSemanal: 33 });
-    expect(distanciasRunning(0)).toEqual({ z2Km: 4, fondoKmInicial: 5, topeFondoKm: 11, topeKmSemanal: 5 });
+    expect(calcularObjetivos({ ...base, peso: 120, objetivo: 'perder_grasa' }).grasa).toBeGreaterThanOrEqual(96);
   });
 });
 
 describe('crearDatos', () => {
   const ahora = new Date(2026, 8, 10, 9);
 
-  it('arma perfil, plan y primera semana', () => {
+  it('arma perfil, plan y primera semana, sin protocolo de tobillo', () => {
     const d = crearDatos(RESPUESTAS, ahora);
     expect(d.version).toBe(2);
-    expect(d.perfil).toMatchObject({ fcMax: 199, fechaInicio: '2026-09-10', objetivo: 'perder_grasa', pesoInicial: 80 });
+    expect(d.perfil).toMatchObject({ fcMax: 199, fechaInicio: '2026-09-10', objetivo: 'perder_grasa', pesoInicial: 80, kmBaseSemanal: 22, metaRunning: 'mejorar', topeKmSemanal: 33, topeFondoKm: 16 });
     expect(d.pesos).toHaveLength(1);
     expect(d.planes).toEqual([{ inicio: '2026-09-07', tipo: 'carga', sesiones: 7 }]);
     expect(d.rutina.plantillas.map((p) => p.id)).toEqual(['torso', 'pierna']);
+    expect(d.rutina.running).toEqual({ z2: 1, calidad: 1, fondo: 1 });
+    expect(d.rutina.plantillas.flatMap((p) => p.ejercicios).some((e) => e.esProtocoloTobillo)).toBe(false);
   });
 
   it('estima la FC máxima si no se conoce', () => {
     expect(crearDatos({ ...RESPUESTAS, fcMax: null }, ahora).perfil.fcMax).toBe(193);
   });
 
-  it('sin running, el plan no tiene salidas; la rutina híbrida siempre corre', () => {
+  it('las salidas salen de los días; sin running no hay salidas; la rutina híbrida siempre corre', () => {
+    expect(crearDatos({ ...RESPUESTAS, diasRunning: 2 }, ahora).rutina.running).toEqual({ z2: 0, calidad: 1, fondo: 1 });
     expect(crearDatos({ ...RESPUESTAS, rutina: 'cuerpo_completo', corre: false }, ahora).rutina.running).toEqual({ z2: 0, calidad: 0, fondo: 0 });
     expect(crearDatos({ ...RESPUESTAS, rutina: 'hibrido', corre: false }, ahora).rutina.running).toEqual({ z2: 1, calidad: 1, fondo: 1 });
   });

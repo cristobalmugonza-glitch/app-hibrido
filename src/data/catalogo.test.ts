@@ -34,14 +34,15 @@ describe('catálogo de ejercicios', () => {
 
 describe('rutinas estándar', () => {
   const GYM = { cuerpo_completo: 3, torso_pierna: 4, empuje_tiron_piernas: 6, hibrido: 4 } as const;
+  const TRES = { z2: 1, calidad: 1, fondo: 1 };
 
   for (const { id } of RUTINAS_ESTANDAR) {
-    for (const running of [false, true]) {
+    for (const running of [null, TRES]) {
       for (const tobillo of [false, true]) {
-        it(`${id} (running=${running}, tobillo=${tobillo}): volumen dentro de rango y sesiones esperadas`, () => {
+        it(`${id} (running=${!!running}, tobillo=${tobillo}): volumen dentro de rango y sesiones esperadas`, () => {
           const r = construirRutina(id, { running, tobillo });
           expect(analisisVolumen(r).filter((f) => f.estado !== 'ok')).toEqual([]);
-          const corre = running || id === 'hibrido';
+          const corre = !!running || id === 'hibrido';
           expect(contarSesiones(r)).toBe(GYM[id] + (corre ? 3 : 0));
           for (const p of r.plantillas) {
             expect(new Set(p.ejercicios.map((e) => e.id)).size, p.id).toBe(p.ejercicios.length);
@@ -54,4 +55,8 @@ describe('rutinas estándar', () => {
       }
     }
   }
+
+  it('respeta las salidas de running indicadas', () => {
+    expect(construirRutina('torso_pierna', { running: { z2: 2, calidad: 1, fondo: 1 }, tobillo: false }).running).toEqual({ z2: 2, calidad: 1, fondo: 1 });
+  });
 });

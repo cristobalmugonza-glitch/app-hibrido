@@ -4,24 +4,10 @@ import { useDatos } from '../almacen/contexto';
 import { Boton, Encabezado, Hoja, Segmentado } from '../componentes/ui';
 import { PorQue } from '../componentes/PorQue';
 import { MUSCULOS, NOMBRE_MUSCULO } from '../data/reglas-tipo';
-import { ajustesRunning } from '../motor/alertas';
 import { fmt1, fmt2, ritmo, segundosAMinTexto } from '../motor/formato';
-import {
-  contextoSemana,
-  corre,
-  fijarTipoSemana,
-  hechasEnSemana,
-  listaBloques,
-  NOMBRE_RUNNING,
-  primeraSemana,
-  SEMANAS_DE_CARGA,
-  sesionesPlanificadas,
-  TIPOS_RUNNING,
-  tipoSemana,
-  totalSesiones,
-} from '../motor/planificacion';
+import { contextoSemana, corre, fijarTipoSemana, hechasEnSemana, listaBloques, NOMBRE_RUNNING, primeraSemana, SEMANAS_DE_CARGA, sesionesPlanificadas, tipoSemana, totalSesiones } from '../motor/planificacion';
 import { aplicarAccion, proyectarSemana, type Ajuste } from '../motor/proyeccion';
-import { prescribir, ritmoSesion } from '../motor/running';
+import { planRunning, porQueObjetivoKm, promedioReal, ritmoSesion, textoObjetivoKm } from '../motor/running';
 import { diaCorto, inicioSemana, rangoSemana, sumarDias } from '../motor/semanas';
 import { borrarSesion } from '../motor/sesiones';
 import { definiciones, seriesHechas, seriesPlanificadas } from '../motor/volumen';
@@ -63,8 +49,8 @@ function EstaSemana() {
   const musculos = MUSCULOS.filter((m) => planM[m] > 0 || hechasM[m] > 0);
   const bloques = listaBloques(datos).filter((b) => b.veces > 0 || (hechas.get(b.key) ?? 0) > 0);
   const km = datos.sesionesRunning.filter((s) => inicioSemana(s.fecha) === inicio).reduce((a, s) => a + s.distanciaKm, 0);
-  const aj = ajustesRunning(datos, ahora, ctx.descarga);
-  const kmPlan = TIPOS_RUNNING.reduce((a, t) => a + datos.rutina.running[t] * prescribir(t, datos, ctx.mesociclo, aj).km, 0);
+  const plan = planRunning(datos, inicio, ahora);
+  const promedio = promedioReal(datos, ahora);
 
   return (
     <div className="mt-5">
@@ -117,12 +103,21 @@ function EstaSemana() {
       )}
 
       {corre(datos) && (
-        <section className="mt-6 flex items-baseline justify-between border-b border-linea pb-3">
-          <h2 className="text-sm text-texto2">Running</h2>
-          <span>
-            <span className="num text-xl">{fmt1(km)}</span>
-            <span className="text-sm text-texto2"> de {fmt1(kmPlan)} km</span>
-          </span>
+        <section className="mt-6 border-b border-linea pb-3">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-sm text-texto2">Running</h2>
+            <span>
+              <span className="num text-xl">{fmt1(km)}</span>
+              <span className="text-sm text-texto2"> de {fmt1(plan.reparto.total)} km</span>
+            </span>
+          </div>
+          <div className="mt-1 flex items-start gap-3">
+            <p className="flex-1 text-sm leading-snug text-texto2">
+              {textoObjetivoKm(plan.objetivo)}
+              {promedio !== null ? ` Tu promedio real: ${fmt1(promedio)} km por semana.` : ''}
+            </p>
+            <PorQue id={porQueObjetivoKm(plan.objetivo)} />
+          </div>
         </section>
       )}
 

@@ -1,12 +1,12 @@
 import { useRef, useState, type ReactNode } from 'react';
-import type { Datos, Objetivo, Sexo } from '../tipos/modelo';
+import type { Datos, MetaRunning, Objetivo, Sexo } from '../tipos/modelo';
 import { leerJSON } from '../almacen/exportar';
 import { aNum, Boton, Campo, Casilla, Segmentado, Volver } from '../componentes/ui';
 import { PorQue } from '../componentes/PorQue';
-import { construirRutina, RUTINAS_ESTANDAR, type IdRutina } from '../data/catalogo';
+import { RUTINAS_ESTANDAR, type IdRutina } from '../data/catalogo';
 import { fmt0 } from '../motor/formato';
-import { crearDatos, fcMaxTanaka, objetivosDe, validarDatosBasicos, type Respuestas } from '../motor/perfil';
-import { contarSesiones } from '../motor/planificacion';
+import { crearDatos, distanciasRunning, fcMaxTanaka, kmSemanaEstimado, objetivosDe, planDe, validarDatosBasicos, type Respuestas } from '../motor/perfil';
+import { contarSesiones, NOMBRE_RUNNING, TIPOS_RUNNING } from '../motor/planificacion';
 
 type Paso = 'inicio' | 'datos' | 'objetivo' | 'rutina' | 'resumen';
 const PASOS: Paso[] = ['datos', 'objetivo', 'rutina', 'resumen'];
@@ -52,6 +52,8 @@ function Macro({ nombre, gramos, porQue }: { nombre: string; gramos: number; por
   );
 }
 
+const DIAS = [0, 1, 2, 3, 4, 5].map((v) => ({ valor: v, etiqueta: v === 5 ? '5+' : String(v) }));
+
 export function Onboarding({ onListo }: { onListo: (d: Datos) => void }) {
   const [paso, setPaso] = useState<Paso>('inicio');
   const [sexo, setSexo] = useState<Sexo>('hombre');
@@ -62,8 +64,10 @@ export function Onboarding({ onListo }: { onListo: (d: Datos) => void }) {
   const [objetivo, setObjetivo] = useState<Objetivo>('perder_grasa');
   const [rutina, setRutina] = useState<IdRutina>('torso_pierna');
   const [corre, setCorre] = useState(false);
-  const [tobillo, setTobillo] = useState(false);
-  const [km, setKm] = useState('20');
+  const [dias, setDias] = useState(3);
+  const [kmSalida, setKmSalida] = useState('');
+  const [kmLarga, setKmLarga] = useState('');
+  const [meta, setMeta] = useState<MetaRunning>('mantener');
   const [ritmoTexto, setRitmoTexto] = useState('6:00');
   const [error, setError] = useState('');
   const archivo = useRef<HTMLInputElement>(null);
@@ -74,8 +78,11 @@ export function Onboarding({ onListo }: { onListo: (d: Datos) => void }) {
   const esHibrido = rutina === 'hibrido';
   const conRunning = corre || esHibrido;
   const ritmoSeg = leerRitmo(ritmoTexto);
-  const kmSemana = aNum(km);
-  const rutinaOk = !conRunning || (kmSemana !== null && kmSemana >= 0 && ritmoSeg !== null);
+  const salida = aNum(kmSalida);
+  const larga = kmLarga.trim() === '' ? salida : aNum(kmLarga);
+  const salidaOk = dias === 0 || (salida !== null && salida > 0 && salida <= 60 && larga !== null && larga >= 0 && larga <= 60);
+  const rutinaOk = !conRunning || (salidaOk && ritmoSeg !== null);
+  const kmEstimados = dias > 0 && salida ? kmSemanaEstimado(dias, salida, larga ?? salida) : null;
 
   const respuestas = (): Respuestas => ({
     sexo,
@@ -86,8 +93,10 @@ export function Onboarding({ onListo }: { onListo: (d: Datos) => void }) {
     objetivo,
     rutina,
     corre: conRunning,
-    tobillo,
-    kmSemana: kmSemana ?? 20,
+    diasRunning: dias,
+    kmSalida: salida ?? 5,
+    kmLarga: larga ?? salida ?? 5,
+    metaRunning: meta,
     ritmoSegKm: ritmoSeg ?? 360,
   });
 
@@ -209,47 +218,77 @@ export function Onboarding({ onListo }: { onListo: (d: Datos) => void }) {
             <Opcion key={r.id} titulo={r.nombre} sub={r.descripcion} marcada={rutina === r.id} onClick={() => setRutina(r.id)} />
           ))}
         </div>
-        <div className="mt-4">
-          {!esHibrido && (
+        {!esHibrido && (
+          <div className="mt-4">
             <Casilla marcada={corre} onCambio={setCorre}>
-              También corro (suma 3 salidas por semana)
+              También corro
             </Casilla>
-          )}
-          <div className="flex items-center gap-2">
-            <div className="flex-1">
-              <Casilla marcada={tobillo} onCambio={setTobillo}>
-                Tobillo inestable o esguinces previos
-              </Casilla>
-            </div>
-            <PorQue id="tobillo_protocolo" />
           </div>
-        </div>
+        )}
+
         {conRunning && (
-          <>
-            <div className="mt-2 grid grid-cols-2 gap-3">
-              <Campo etiqueta="Km por semana hoy" valor={km} onCambio={setKm} unidad="km" teclado="numeric" />
+          <section className="mt-5 border-t border-linea pt-5">
+            <h2 className="text-lg font-semibold">Tu running hoy</h2>
+            <p className="mb-2 mt-3 text-sm text-texto2">Días que corres por semana</p>
+            <Segmentado<number> opciones={DIAS} valor={dias} onCambio={setDias} />
+            {dias === 0 ? (
+              <p className="mt-2 text-sm text-texto2">Partes con 3 salidas suaves por semana.</p>
+            ) : (
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <Campo etiqueta="Salida normal" valor={kmSalida} onCambio={setKmSalida} unidad="km" placeholder="6" />
+                <Campo etiqueta="Más larga del mes" valor={kmLarga} onCambio={setKmLarga} unidad="km" placeholder="10" />
+              </div>
+            )}
+            {kmEstimados !== null && (
+              <div className="mt-3 flex items-start gap-2">
+                <p className="flex-1 text-sm text-texto2">
+                  Corres unos <span className="text-texto">{kmEstimados} km por semana</span>. Si usas reloj o Strava, compáralo con tu promedio de las últimas 4 semanas.
+                </p>
+                <PorQue id="km_semanales" pequeno />
+              </div>
+            )}
+            <div className="mt-3 grid grid-cols-2 gap-3">
               <Campo etiqueta="Ritmo cómodo" valor={ritmoTexto} onCambio={setRitmoTexto} unidad="/km" teclado="text" placeholder="6:00" />
             </div>
-            {!rutinaOk && <p className="mt-3 text-sm text-alerta">Escribe los km por semana y el ritmo como minutos:segundos, por ejemplo 6:00.</p>}
-          </>
+
+            <p className="mb-2 mt-5 text-sm text-texto2">En running quieres</p>
+            <Segmentado<MetaRunning>
+              opciones={[
+                { valor: 'mantener', etiqueta: 'Mantener forma' },
+                { valor: 'mejorar', etiqueta: 'Mejorar' },
+              ]}
+              valor={meta}
+              onCambio={setMeta}
+            />
+            <div className="mt-2 flex items-start gap-2">
+              <p className="flex-1 text-sm text-texto2">{meta === 'mantener' ? 'Tus km cada semana, con 1 sesión de calidad para no perder el ritmo.' : 'Los km suben hasta 8 % por semana cuando cumples lo planificado.'}</p>
+              <PorQue id={meta === 'mantener' ? 'mantener_running' : 'progresion_running'} pequeno />
+            </div>
+
+            {!rutinaOk && (kmSalida.trim() !== '' || ritmoSeg === null) && (
+              <p className="mt-3 text-sm text-alerta">Escribe tu salida normal en km (hasta 60) y el ritmo como minutos:segundos, por ejemplo 6:00.</p>
+            )}
+          </section>
         )}
       </>,
-      <Boton disabled={!rutinaOk} onClick={siguiente}>
-        Seguir
-      </Boton>,
+      <>
+        {conRunning && !rutinaOk && kmSalida.trim() === '' && ritmoSeg !== null && <p className="mb-2 text-center text-sm text-texto2">Completa tu salida normal para seguir.</p>}
+        <Boton disabled={!rutinaOk} onClick={siguiente}>
+          Seguir
+        </Boton>
+      </>,
     );
   }
 
   const r = respuestas();
   const obj = objetivosDe(r);
   const carbos = Math.max(0, Math.round((obj.kcal - obj.proteina * 4 - obj.grasa * 9) / 4));
-  const plan = construirRutina(r.rutina, { running: r.corre, tobillo: r.tobillo });
+  const plan = planDe(r);
   const bloques = [
     ...plan.plantillas.map((x) => (x.vecesPorSemana > 1 ? `${x.nombre} ×${x.vecesPorSemana}` : x.nombre)),
-    ...(plan.running.z2 ? ['Running Z2'] : []),
-    ...(plan.running.calidad ? ['Running calidad'] : []),
-    ...(plan.running.fondo ? ['Fondo largo'] : []),
+    ...TIPOS_RUNNING.filter((t) => plan.running[t] > 0).map((t) => (plan.running[t] > 1 ? `${NOMBRE_RUNNING[t]} ×${plan.running[t]}` : NOMBRE_RUNNING[t])),
   ];
+  const kmBase = conRunning ? distanciasRunning(kmSemanaEstimado(r.diasRunning, r.kmSalida, r.kmLarga), r.kmLarga).kmBaseSemanal : null;
 
   return marco(
     <>
@@ -268,6 +307,14 @@ export function Onboarding({ onListo }: { onListo: (d: Datos) => void }) {
       </div>
       <p className="mt-6 text-sm text-texto2">Plan semanal · {contarSesiones(plan)} sesiones</p>
       <p className="mt-1 text-[15px] leading-snug">{bloques.join(', ')}</p>
+      {kmBase !== null && (
+        <div className="mt-4 flex items-start gap-2">
+          <p className="flex-1 text-[15px] leading-snug">
+            Running: partes con {kmBase} km por semana y {meta === 'mantener' ? 'los mantienes' : 'suben cuando cumples'}.
+          </p>
+          <PorQue id={meta === 'mantener' ? 'mantener_running' : 'progresion_running'} pequeno />
+        </div>
+      )}
       <p className="mt-6 text-sm text-texto2">Todo se ajusta después en Más › Ajustes, y las calorías se calibran solas con tus pesajes.</p>
     </>,
     <Boton onClick={() => onListo(crearDatos(r))}>Crear mi plan</Boton>,

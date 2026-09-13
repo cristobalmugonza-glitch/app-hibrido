@@ -1,4 +1,4 @@
-import type { Datos, Objetivo, Perfil, Sexo } from '../tipos/modelo';
+import type { Datos, MetaRunning, Objetivo, Perfil, Rutina, Sexo } from '../tipos/modelo';
 import { construirRutina, type IdRutina } from '../data/catalogo';
 import { diaLocal } from './fechas';
 import { asegurarPlanSemana, contarSesiones } from './planificacion';
@@ -81,30 +81,54 @@ export type Respuestas = {
   objetivo: Objetivo;
   rutina: IdRutina;
   corre: boolean;
-  tobillo: boolean;
-  kmSemana: number;
+  diasRunning: number; // 0 = recién empiezo
+  kmSalida: number; // una salida normal
+  kmLarga: number; // la salida más larga del último mes
+  metaRunning: MetaRunning;
   ritmoSegKm: number;
 };
 
-export function objetivosDe(r: Respuestas): Objetivos {
-  const rutina = construirRutina(r.rutina, { running: r.corre, tobillo: r.tobillo });
-  return calcularObjetivos({ sexo: r.sexo, peso: r.peso, altura: r.altura, edad: r.edad, objetivo: r.objetivo, sesiones: contarSesiones(rutina) });
+// Salidas por semana según los días que ya corres. Con 2 días: 1 de calidad y 1 larga, lo mínimo para mantener.
+export function salidasSegunDias(dias: number): Rutina['running'] {
+  if (dias <= 0) return { z2: 2, calidad: 0, fondo: 1 };
+  if (dias === 1) return { z2: 1, calidad: 0, fondo: 0 };
+  if (dias === 2) return { z2: 0, calidad: 1, fondo: 1 };
+  if (dias === 3) return { z2: 1, calidad: 1, fondo: 1 };
+  if (dias === 4) return { z2: 2, calidad: 1, fondo: 1 };
+  return { z2: 3, calidad: 1, fondo: 1 };
 }
 
-// Distancias iniciales a partir de los km que ya corre (práctica común; todo se edita en Ajustes).
-export function distanciasRunning(kmSemana: number) {
-  const fondo = acotar(Math.round(kmSemana * 0.35), 5, 16);
+// Km semanales a partir de lo que un corredor sabe: días × salida normal, cambiando una por la más larga.
+export function kmSemanaEstimado(dias: number, kmSalida: number, kmLarga: number): number {
+  if (dias <= 0) return 0;
+  return Math.round((dias - 1) * kmSalida + Math.max(kmLarga, kmSalida));
+}
+
+// Punto de partida y topes (práctica común; todo se edita en Ajustes).
+export function distanciasRunning(kmSemana: number, kmLarga: number) {
+  const base = Math.max(8, Math.round(kmSemana));
   return {
-    z2Km: acotar(Math.round(kmSemana * 0.25), 4, 10),
-    fondoKmInicial: fondo,
-    topeFondoKm: acotar(fondo + 6, 10, 21),
-    topeKmSemanal: Math.max(kmSemana + 5, Math.round(kmSemana * 1.3)),
+    kmBaseSemanal: base,
+    topeKmSemanal: Math.max(base + 10, Math.round(base * 1.5)),
+    topeFondoKm: acotar(Math.max(kmLarga, Math.round(base * 0.45)) + 6, 10, 32),
   };
 }
 
+const correEn = (r: Respuestas) => r.corre || r.rutina === 'hibrido';
+
+function rutinaDe(r: Respuestas): Rutina {
+  return construirRutina(r.rutina, { running: correEn(r) ? salidasSegunDias(r.diasRunning) : null, tobillo: false });
+}
+
+export function objetivosDe(r: Respuestas): Objetivos {
+  return calcularObjetivos({ sexo: r.sexo, peso: r.peso, altura: r.altura, edad: r.edad, objetivo: r.objetivo, sesiones: contarSesiones(rutinaDe(r)) });
+}
+
+export const planDe = rutinaDe;
+
 export function crearDatos(r: Respuestas, ahora = new Date()): Datos {
-  const corre = r.corre || r.rutina === 'hibrido';
-  const rutina = construirRutina(r.rutina, { running: corre, tobillo: r.tobillo });
+  const corre = correEn(r);
+  const rutina = rutinaDe(r);
   const obj = calcularObjetivos({ sexo: r.sexo, peso: r.peso, altura: r.altura, edad: r.edad, objetivo: r.objetivo, sesiones: contarSesiones(rutina) });
   const perfil: Perfil = {
     sexo: r.sexo,
@@ -118,7 +142,8 @@ export function crearDatos(r: Respuestas, ahora = new Date()): Datos {
     proteinaObjetivo: obj.proteina,
     grasaObjetivo: obj.grasa,
     pisoKcal: obj.piso,
-    ...distanciasRunning(corre ? r.kmSemana : 20),
+    ...distanciasRunning(corre ? kmSemanaEstimado(r.diasRunning, r.kmSalida, r.kmLarga) : 15, corre ? r.kmLarga : 10),
+    metaRunning: r.metaRunning,
     ritmoSemillaSegKm: r.ritmoSegKm,
   };
   const datos: Datos = {

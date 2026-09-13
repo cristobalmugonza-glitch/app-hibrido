@@ -18,10 +18,13 @@ export type Perfil = {
   pisoKcal: number; // la calibración nunca propone bajar de acá
   topeKmSemanal: number;
   topeFondoKm: number;
-  fondoKmInicial: number;
-  z2Km: number;
+  kmBaseSemanal: number; // km semanales con los que se parte (o se mantiene)
+  metaRunning: MetaRunning;
   ritmoSemillaSegKm: number; // se usa hasta que exista un test de 8 km
 };
+
+// mantener: mismos km cada semana con 1 sesión de calidad; mejorar: los km suben si cumples.
+export type MetaRunning = 'mantener' | 'mejorar';
 
 export type TipoEjercicio = 'compuesto_pesado' | 'compuesto_liviano' | 'aislamiento' | 'calistenia_peso_corporal';
 

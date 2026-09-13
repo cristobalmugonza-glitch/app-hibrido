@@ -1,7 +1,7 @@
 // Cada DOI fue verificado contra Crossref y cada hallazgo contrastado con el abstract (Europe PMC)
 // el 11/09/2026. Sin DOI no entra, salvo el informe técnico Navy (fuente primaria sin DOI).
 
-export type NivelEvidencia = 'metaanalisis' | 'revision_sistematica' | 'eca' | 'observacional' | 'consenso' | 'mecanicista';
+export type NivelEvidencia = 'metaanalisis' | 'revision_sistematica' | 'eca' | 'experimental' | 'observacional' | 'consenso' | 'mecanicista';
 
 export type Tema = 'estructura' | 'fuerza' | 'concurrente' | 'running' | 'carga_lesion' | 'tobillo' | 'nutricion' | 'composicion';
 
@@ -24,6 +24,7 @@ export const NOMBRE_NIVEL: Record<NivelEvidencia, string> = {
   metaanalisis: 'Metaanálisis',
   revision_sistematica: 'Revisión sistemática',
   eca: 'Ensayo aleatorizado',
+  experimental: 'Estudio experimental',
   observacional: 'Observacional',
   consenso: 'Consenso de expertos',
   mecanicista: 'Mecanicista',
@@ -94,6 +95,10 @@ export const REFERENCIAS: Referencia[] = [
 
   // Running
   R({ id: 'tanaka2001', tema: 'running', autores: 'Tanaka H, Monahan KD, Seals DR', anio: 2001, titulo: 'Age-predicted maximal heart rate revisited', revista: 'J Am Coll Cardiol. 2001;37(1):153–156', doi: '10.1016/S0735-1097(00)01054-8', nivelEvidencia: 'metaanalisis', hallazgo: 'Metaanálisis de 351 estudios (18.712 personas) y validación en laboratorio con 514 adultos sanos: FC máx ≈ 208 − 0,7 × edad, sin diferencias por sexo ni por nivel de actividad. La fórmula 220 − edad la subestima en adultos mayores.', limitaciones: 'Es un promedio poblacional: la FC máxima de una persona puede ser bastante distinta. Si conoces la tuya medida, úsala.' }),
+  R({ id: 'spiering2021', tema: 'running', autores: 'Spiering BA, Mujika I, Sharp MA, Foulis SA', anio: 2021, titulo: 'Maintaining Physical Performance: The Minimal Dose of Exercise Needed to Preserve Endurance and Strength Over Time', revista: 'J Strength Cond Res. 2021;35(5):1449–1458', doi: '10.1519/JSC.0000000000003964', nivelEvidencia: 'consenso', hallazgo: 'En población general, el rendimiento de resistencia se mantuvo hasta 15 semanas con solo 2 sesiones por semana o reduciendo el volumen 33–66 % (13–26 min por sesión), siempre que se mantuviera la intensidad. La fuerza y la masa muscular en jóvenes se mantuvieron hasta 32 semanas con 1 sesión y 1 serie por ejercicio, a la misma carga relativa.', limitaciones: 'Revisión narrativa; los autores indican que faltan datos para recomendaciones específicas en atletas.' }),
+  R({ id: 'hickson1985', tema: 'running', autores: 'Hickson RC, Foster C, Pollock ML, Galassi TM, Rich S', anio: 1985, titulo: 'Reduced training intensities and loss of aerobic power, endurance, and cardiac growth', revista: 'J Appl Physiol. 1985;58(2):492–499', doi: '10.1152/jappl.1985.58.2.492', nivelEvidencia: 'experimental', hallazgo: 'Tras 10 semanas de entrenamiento, 12 personas redujeron la intensidad un tercio o dos tercios durante 15 semanas, con la misma frecuencia y duración. El VO2máx no se mantuvo en ningún grupo y la resistencia larga cayó 21 % y 30 %: la intensidad es clave para conservar lo ganado.', limitaciones: 'Estudio experimental pequeño (12 personas) sin aleatorización descrita; mezclaba bicicleta y carrera.' }),
+  R({ id: 'mujika2000', tema: 'running', autores: 'Mujika I, Padilla S', anio: 2000, titulo: 'Detraining: loss of training-induced physiological and performance adaptations. Part I', revista: 'Sports Med. 2000;30(2):79–87', doi: '10.2165/00007256-200030020-00002', nivelEvidencia: 'consenso', hallazgo: 'Con menos de 4 semanas de estímulo insuficiente, los atletas muy entrenados pierden rápido VO2máx y volumen sanguíneo y empeora su rendimiento de resistencia; en personas entrenadas hace poco los cambios son más moderados.', limitaciones: 'Revisión narrativa; describe qué se pierde, no fija una dosis mínima para mantener.' }),
+  R({ id: 'damsted2018', tema: 'carga_lesion', autores: 'Damsted C, Glad S, Nielsen RO, Sørensen H, Malisoux L', anio: 2018, titulo: 'Is there evidence for an association between changes in training load and running-related injuries? A systematic review', revista: 'Int J Sports Phys Ther. 2018;13(6):931–942', doi: '10.26603/ijspt20180931', nivelEvidencia: 'revision_sistematica', hallazgo: 'En 4 estudios, 3 asociaron aumentos de carga con más lesiones (por ejemplo, subir más de 30 % la distancia semanal), pero no hubo diferencia entre subir 10 % y 24 % en promedio. Concluyen que la evidencia es muy limitada.', limitaciones: 'Pocos estudios y heterogéneos; no permite fijar un porcentaje de aumento seguro.' }),
   R({ id: 'seiler2010', tema: 'running', autores: 'Seiler S', anio: 2010, titulo: 'What is Best Practice for Training Intensity and Duration Distribution in Endurance Athletes?', revista: 'Int J Sports Physiol Perform. 2010;5(3):276–291', doi: '10.1123/ijspp.5.3.276', nivelEvidencia: 'observacional', hallazgo: 'Los atletas de resistencia exitosos hacen cerca del 80 % de sus sesiones a baja intensidad y ~20 % a alta intensidad.', limitaciones: 'Describe atletas de élite que entrenan 10–13 veces por semana; aplicarlo a un corredor recreativo es extrapolación.' }),
 
   // Carga y lesiones
