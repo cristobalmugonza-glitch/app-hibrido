@@ -7,7 +7,7 @@ import { PorQue } from '../componentes/PorQue';
 import { EditorRutina } from './EditorRutina';
 import { fmt0, fmt1, ritmo } from '../motor/formato';
 import { pesoActual, pisoGrasa } from '../motor/nutricion';
-import { calcularObjetivos } from '../motor/perfil';
+import { alturaCm, calcularObjetivos } from '../motor/perfil';
 import { corre, sesionesPlanificadas } from '../motor/planificacion';
 
 type Vista = null | 'perfil' | 'rutina';
@@ -128,7 +128,8 @@ function FormPerfil({ onCerrar }: { onCerrar: () => void }) {
   const kcal = v('caloriasObjetivo');
   const piso = v('pisoKcal');
   const grasa = v('grasaObjetivo');
-  const altura = v('altura');
+  const alturaEscrita = v('altura');
+  const altura = alturaEscrita !== null ? alturaCm(alturaEscrita) : null;
 
   const recalcular = () => {
     if (!e || !altura) return;
@@ -141,7 +142,8 @@ function FormPerfil({ onCerrar }: { onCerrar: () => void }) {
     const nuevo: Perfil = { ...datos.perfil, sexo, objetivo, ...(e && e > 0 ? { edad: Math.round(e) } : {}) };
     for (const c of TODOS) {
       const n = v(c.k);
-      if (n !== null && n > 0) nuevo[c.k] = n;
+      // La altura se acepta también en metros (1,78).
+      if (n !== null && n > 0) nuevo[c.k] = c.k === 'altura' ? alturaCm(n) : n;
     }
     const [m, s] = ritmoTexto.split(':').map(Number);
     if (isFinite(m) && isFinite(s)) nuevo.ritmoSemillaSegKm = m * 60 + s;

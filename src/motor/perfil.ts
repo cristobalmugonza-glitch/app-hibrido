@@ -9,6 +9,41 @@ export const reposoMifflin = (sexo: Sexo, peso: number, altura: number, edad: nu
 // FC máxima estimada (Tanaka 2001).
 export const fcMaxTanaka = (edad: number) => Math.round(208 - 0.7 * edad);
 
+// Acepta la altura en metros (1,78) o en centímetros (178) y la devuelve en centímetros.
+export function alturaCm(n: number): number {
+  return n >= 1 && n <= 2.5 ? Math.round(n * 100) : n;
+}
+
+// undefined = campo vacío; null = no es un número.
+function leer(texto: string): number | null | undefined {
+  const t = texto.trim();
+  if (!t) return undefined;
+  const n = Number(t.replace(',', '.'));
+  return isFinite(n) ? n : null;
+}
+
+export type DatosBasicos = { edad: number; altura: number; peso: number; fcMax: number | null };
+
+// Valida los datos del primer paso y explica en palabras qué corregir.
+export function validarDatosBasicos(t: { edad: string; altura: string; peso: string; fcMax: string }): { valores: DatosBasicos | null; errores: string[]; faltan: boolean } {
+  const edad = leer(t.edad);
+  const alturaLeida = leer(t.altura);
+  const altura = typeof alturaLeida === 'number' ? alturaCm(alturaLeida) : alturaLeida;
+  const peso = leer(t.peso);
+  const fcMax = leer(t.fcMax);
+  const fuera = (v: number | null | undefined, min: number, max: number) => v === null || (v !== undefined && (v < min || v > max));
+
+  const errores: string[] = [];
+  if (fuera(edad, 14, 90)) errores.push('La edad debe estar entre 14 y 90 años.');
+  if (fuera(altura, 120, 230)) errores.push('Escribe la altura en centímetros (178) o en metros (1,78).');
+  if (fuera(peso, 30, 300)) errores.push('El peso debe estar entre 30 y 300 kg.');
+  if (fuera(fcMax, 120, 230)) errores.push('La FC máxima debe estar entre 120 y 230 lpm, o déjala vacía.');
+
+  const faltan = edad === undefined || altura === undefined || peso === undefined;
+  const valores = !errores.length && !faltan ? { edad: edad as number, altura: altura as number, peso: peso as number, fcMax: fcMax ?? null } : null;
+  return { valores, errores, faltan };
+}
+
 // Factor de actividad según sesiones por semana (práctica común; la calibración semanal corrige el error).
 export function factorActividad(sesiones: number): number {
   if (sesiones <= 1) return 1.2;

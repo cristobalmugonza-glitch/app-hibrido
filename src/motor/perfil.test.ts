@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RESPUESTAS } from '../pruebas/fixtures';
-import { calcularObjetivos, crearDatos, distanciasRunning, factorActividad, fcMaxTanaka, reposoMifflin } from './perfil';
+import { alturaCm, calcularObjetivos, crearDatos, distanciasRunning, factorActividad, fcMaxTanaka, reposoMifflin, validarDatosBasicos } from './perfil';
 
 describe('estimaciones', () => {
   it('Mifflin-St Jeor', () => {
@@ -15,6 +15,32 @@ describe('estimaciones', () => {
 
   it('factor de actividad según sesiones por semana', () => {
     expect([0, 3, 4, 7, 9].map(factorActividad)).toEqual([1.2, 1.375, 1.55, 1.725, 1.9]);
+  });
+});
+
+describe('datos del primer paso', () => {
+  const vacio = { edad: '', altura: '', peso: '', fcMax: '' };
+
+  it('acepta la altura en metros o en centímetros, con punto o coma', () => {
+    expect(alturaCm(1.78)).toBe(178);
+    expect(alturaCm(178)).toBe(178);
+    expect(validarDatosBasicos({ edad: '21', altura: '1.78', peso: '80.7', fcMax: '' }).valores).toEqual({ edad: 21, altura: 178, peso: 80.7, fcMax: null });
+    expect(validarDatosBasicos({ edad: '21', altura: '1,78', peso: '80,7', fcMax: '199' }).valores).toEqual({ edad: 21, altura: 178, peso: 80.7, fcMax: 199 });
+  });
+
+  it('con campos vacíos no muestra errores, solo que faltan datos', () => {
+    expect(validarDatosBasicos(vacio)).toEqual({ valores: null, errores: [], faltan: true });
+  });
+
+  it('explica qué corregir cuando un dato está fuera de rango', () => {
+    const r = validarDatosBasicos({ edad: '210', altura: '17,8', peso: 'ochenta', fcMax: '90' });
+    expect(r.valores).toBeNull();
+    expect(r.errores).toEqual([
+      'La edad debe estar entre 14 y 90 años.',
+      'Escribe la altura en centímetros (178) o en metros (1,78).',
+      'El peso debe estar entre 30 y 300 kg.',
+      'La FC máxima debe estar entre 120 y 230 lpm, o déjala vacía.',
+    ]);
   });
 });
 

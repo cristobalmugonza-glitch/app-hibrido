@@ -5,7 +5,7 @@ import { aNum, Boton, Campo, Casilla, Segmentado, Volver } from '../componentes/
 import { PorQue } from '../componentes/PorQue';
 import { construirRutina, RUTINAS_ESTANDAR, type IdRutina } from '../data/catalogo';
 import { fmt0 } from '../motor/formato';
-import { crearDatos, fcMaxTanaka, objetivosDe, type Respuestas } from '../motor/perfil';
+import { crearDatos, fcMaxTanaka, objetivosDe, validarDatosBasicos, type Respuestas } from '../motor/perfil';
 import { contarSesiones } from '../motor/planificacion';
 
 type Paso = 'inicio' | 'datos' | 'objetivo' | 'rutina' | 'resumen';
@@ -68,24 +68,21 @@ export function Onboarding({ onListo }: { onListo: (d: Datos) => void }) {
   const [error, setError] = useState('');
   const archivo = useRef<HTMLInputElement>(null);
 
-  const e = aNum(edad);
-  const a = aNum(altura);
-  const p = aNum(peso);
-  const f = aNum(fcMax);
+  const validacion = validarDatosBasicos({ edad, altura, peso, fcMax });
+  const basicos = validacion.valores;
+  const edadEscrita = aNum(edad);
   const esHibrido = rutina === 'hibrido';
   const conRunning = corre || esHibrido;
   const ritmoSeg = leerRitmo(ritmoTexto);
   const kmSemana = aNum(km);
-
-  const datosOk = e !== null && e >= 14 && e <= 90 && a !== null && a >= 120 && a <= 230 && p !== null && p >= 30 && p <= 300 && (fcMax.trim() === '' || (f !== null && f >= 120 && f <= 230));
   const rutinaOk = !conRunning || (kmSemana !== null && kmSemana >= 0 && ritmoSeg !== null);
 
   const respuestas = (): Respuestas => ({
     sexo,
-    edad: e ?? 30,
-    altura: a ?? 170,
-    peso: p ?? 70,
-    fcMax: fcMax.trim() === '' ? null : f,
+    edad: basicos?.edad ?? 30,
+    altura: basicos?.altura ?? 170,
+    peso: basicos?.peso ?? 70,
+    fcMax: basicos?.fcMax ?? null,
     objetivo,
     rutina,
     corre: conRunning,
@@ -157,21 +154,33 @@ export function Onboarding({ onListo }: { onListo: (d: Datos) => void }) {
           />
         </div>
         <div className="mt-4 grid grid-cols-3 gap-3">
-          <Campo etiqueta="Edad" valor={edad} onCambio={setEdad} unidad="años" teclado="numeric" />
-          <Campo etiqueta="Altura" valor={altura} onCambio={setAltura} unidad="cm" teclado="numeric" />
-          <Campo etiqueta="Peso" valor={peso} onCambio={setPeso} unidad="kg" />
+          <Campo etiqueta="Edad" valor={edad} onCambio={setEdad} unidad="años" teclado="numeric" placeholder="21" />
+          <Campo etiqueta="Altura" valor={altura} onCambio={setAltura} unidad="cm" placeholder="178" />
+          <Campo etiqueta="Peso" valor={peso} onCambio={setPeso} unidad="kg" placeholder="75" />
         </div>
         <div className="mt-4">
-          <Campo etiqueta="FC máxima (opcional)" valor={fcMax} onCambio={setFcMax} unidad="lpm" teclado="numeric" placeholder={e ? `estimada: ${fcMaxTanaka(e)}` : 'si la conoces'} />
+          <Campo etiqueta="FC máxima (opcional)" valor={fcMax} onCambio={setFcMax} unidad="lpm" teclado="numeric" placeholder={edadEscrita ? `estimada: ${fcMaxTanaka(edadEscrita)}` : 'si la conoces'} />
         </div>
         <div className="mt-2 flex items-center gap-2">
           <p className="flex-1 text-sm text-texto2">Si la dejas vacía, se estima con tu edad.</p>
           <PorQue id="fcmax_estimada" pequeno />
         </div>
+        {validacion.errores.length > 0 && (
+          <ul className="mt-4 space-y-1" role="alert">
+            {validacion.errores.map((e) => (
+              <li key={e} className="text-sm text-alerta">
+                {e}
+              </li>
+            ))}
+          </ul>
+        )}
       </>,
-      <Boton disabled={!datosOk} onClick={siguiente}>
-        Seguir
-      </Boton>,
+      <>
+        {!basicos && !validacion.errores.length && <p className="mb-2 text-center text-sm text-texto2">Completa edad, altura y peso para seguir.</p>}
+        <Boton disabled={!basicos} onClick={siguiente}>
+          Seguir
+        </Boton>
+      </>,
     );
   }
 
@@ -216,10 +225,13 @@ export function Onboarding({ onListo }: { onListo: (d: Datos) => void }) {
           </div>
         </div>
         {conRunning && (
-          <div className="mt-2 grid grid-cols-2 gap-3">
-            <Campo etiqueta="Km por semana hoy" valor={km} onCambio={setKm} unidad="km" teclado="numeric" />
-            <Campo etiqueta="Ritmo cómodo" valor={ritmoTexto} onCambio={setRitmoTexto} unidad="/km" teclado="text" placeholder="6:00" />
-          </div>
+          <>
+            <div className="mt-2 grid grid-cols-2 gap-3">
+              <Campo etiqueta="Km por semana hoy" valor={km} onCambio={setKm} unidad="km" teclado="numeric" />
+              <Campo etiqueta="Ritmo cómodo" valor={ritmoTexto} onCambio={setRitmoTexto} unidad="/km" teclado="text" placeholder="6:00" />
+            </div>
+            {!rutinaOk && <p className="mt-3 text-sm text-alerta">Escribe los km por semana y el ritmo como minutos:segundos, por ejemplo 6:00.</p>}
+          </>
         )}
       </>,
       <Boton disabled={!rutinaOk} onClick={siguiente}>
